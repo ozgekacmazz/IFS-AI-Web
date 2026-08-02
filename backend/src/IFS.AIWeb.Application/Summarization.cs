@@ -5,7 +5,9 @@ namespace IFS.AIWeb.Application;
 
 public sealed record SummarizeCommand(Guid UserId, string Text, string Language);
 public sealed record SummaryResponse(Guid Id, string Summary, string Language, DateTimeOffset CreatedAtUtc, DateTimeOffset ExpiresAtUtc);
-public sealed record RecentSummaryResponse(Guid Id, string InputText, string Summary, string Language, DateTimeOffset CreatedAtUtc, DateTimeOffset ExpiresAtUtc);
+public sealed record RecentSummaryResponse(Guid Id, string Summary, string Language, DateTimeOffset CreatedAtUtc, DateTimeOffset ExpiresAtUtc);
+public sealed record SummaryDetailResponse(Guid Id, string InputText, string Summary, string Language,
+    DateTimeOffset CreatedAtUtc, DateTimeOffset ExpiresAtUtc, string PromptVersion);
 public sealed record PromptEnvelope(string Version, string SystemInstruction, string UserContent, SummaryLanguage Language);
 public sealed record LlmSummary(string Text, string Provider, string Model);
 
@@ -17,6 +19,7 @@ public sealed class LlmProviderException(LlmFailureKind kind, string provider = 
     public string Model { get; } = model;
 }
 public sealed class SummarizationFailedException(LlmFailureKind kind) : Exception("Summarization failed") { public LlmFailureKind Kind { get; } = kind; }
+public sealed class SummaryNotFoundException : Exception { }
 
 public interface ISummarizationPromptBuilder { PromptEnvelope Build(string text, SummaryLanguage language); }
 public interface ILlmSummarizer { Task<LlmSummary> SummarizeAsync(PromptEnvelope prompt, CancellationToken ct); }
@@ -24,6 +27,7 @@ public interface ISummaryRepository
 {
     void Add(SummaryRecord record);
     Task<IReadOnlyList<SummaryRecord>> GetRecentSuccessfulAsync(Guid userId, int limit, CancellationToken ct);
+    Task<SummaryRecord?> GetSuccessfulDetailAsync(Guid id, Guid userId, DateTimeOffset now, CancellationToken ct);
 }
 
 public sealed class SummarizationPromptBuilder : ISummarizationPromptBuilder
@@ -64,8 +68,14 @@ public sealed class SummarizationService(ISummarizationPromptBuilder prompts, IL
         }
     }
     public async Task<IReadOnlyList<RecentSummaryResponse>> RecentAsync(Guid userId, CancellationToken ct) =>
-        (await summaries.GetRecentSuccessfulAsync(userId, 3, ct)).Select(x => new RecentSummaryResponse(x.Id, x.InputText,
+        (await summaries.GetRecentSuccessfulAsync(userId, 3, ct)).Select(x => new RecentSummaryResponse(x.Id,
             x.SummaryText!, x.RequestedLanguage.ToString(), x.CreatedAtUtc, x.ExpiresAtUtc)).ToArray();
+    public async Task<SummaryDetailResponse> DetailAsync(Guid userId, Guid id, CancellationToken ct)
+    {
+        var record = await summaries.GetSuccessfulDetailAsync(id, userId, clock.UtcNow, ct) ?? throw new SummaryNotFoundException();
+        return new(record.Id, record.InputText, record.SummaryText!, record.RequestedLanguage.ToString(),
+            record.CreatedAtUtc, record.ExpiresAtUtc, record.PromptVersion);
+    }
     private static SummaryLanguage Validate(string text, string language)
     {
         var errors = new Dictionary<string, string[]>();

@@ -23,6 +23,9 @@ internal sealed class SummaryRepository(AuthDbContext db) : ISummaryRepository
     public async Task<IReadOnlyList<SummaryRecord>> GetRecentSuccessfulAsync(Guid userId, int limit, CancellationToken ct) =>
         await db.SummaryRecords.AsNoTracking().Where(x => x.UserId == userId && x.Status == SummaryStatus.Succeeded)
             .OrderByDescending(x => x.CreatedAtUtc).ThenByDescending(x => x.Id).Take(Math.Min(limit, 3)).ToListAsync(ct);
+    public Task<SummaryRecord?> GetSuccessfulDetailAsync(Guid id, Guid userId, DateTimeOffset now, CancellationToken ct) =>
+        db.SummaryRecords.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && x.UserId == userId &&
+            x.Status == SummaryStatus.Succeeded && x.ExpiresAtUtc > now, ct);
 }
 
 public sealed class GroqSummarizer(HttpClient client, GroqOptions options) : ILlmSummarizer

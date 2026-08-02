@@ -57,6 +57,8 @@ summaryApi.MapPost("/", async (SummarizeRequest request, ClaimsPrincipal princip
     .RequireRateLimiting("SummaryPerUser").WithMetadata(new RequestSizeLimitAttribute(20_000));
 summaryApi.MapGet("/recent", async (ClaimsPrincipal principal, SummarizationService service, CancellationToken ct) =>
     Results.Ok(await service.RecentAsync(Guid.Parse(principal.FindFirstValue(JwtRegisteredClaimNames.Sub)!), ct)));
+summaryApi.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, SummarizationService service, CancellationToken ct) =>
+    Results.Ok(await service.DetailAsync(Guid.Parse(principal.FindFirstValue(JwtRegisteredClaimNames.Sub)!), id, ct)));
 if (!app.Environment.IsEnvironment("Testing")) await FirstAdminSeeder.SeedAsync(app.Services, app.Configuration);
 app.Run();
 
@@ -65,13 +67,13 @@ static CookieOptions CookieOptions(HttpContext context, DateTimeOffset expires) 
 static void ValidateOrigin(HttpContext context, string[] allowed) { var origin = context.Request.Headers.Origin.ToString(); if (string.IsNullOrWhiteSpace(origin) || !allowed.Contains(origin, StringComparer.Ordinal)) throw new BadHttpRequestException("İstek kaynağına izin verilmiyor.", 403); }
 static async Task WriteError(HttpContext context)
 {
-    var error = context.Features.Get<IExceptionHandlerFeature>()!.Error; var (status, title) = error switch { RequestValidationException => (400, "Doğrulama hatası"), AuthenticationFailedException => (401, "Kimlik doğrulama başarısız"), UsernameConflictException => (409, "Kullanıcı adı kullanılıyor"), SummarizationFailedException { Kind: LlmFailureKind.Timeout } => (504, "Özetleme zaman aşımına uğradı"), SummarizationFailedException { Kind: LlmFailureKind.RateLimited } => (503, "Özetleme hizmeti meşgul"), SummarizationFailedException => (502, "Özetleme hizmeti kullanılamıyor"), BadHttpRequestException bad => (bad.StatusCode, "İstek reddedildi"), _ => (500, "Beklenmeyen hata") };
+    var error = context.Features.Get<IExceptionHandlerFeature>()!.Error; var (status, title) = error switch { RequestValidationException => (400, "Doğrulama hatası"), AuthenticationFailedException => (401, "Kimlik doğrulama başarısız"), UsernameConflictException => (409, "Kullanıcı adı kullanılıyor"), SummaryNotFoundException => (404, "Özet bulunamadı"), SummarizationFailedException { Kind: LlmFailureKind.Timeout } => (504, "Özetleme zaman aşımına uğradı"), SummarizationFailedException { Kind: LlmFailureKind.RateLimited } => (503, "Özetleme hizmeti meşgul"), SummarizationFailedException => (502, "Özetleme hizmeti kullanılamıyor"), BadHttpRequestException bad => (bad.StatusCode, "İstek reddedildi"), _ => (500, "Beklenmeyen hata") };
     if (status == 500)
     {
         var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("SafeExceptionHandler");
         logger.LogError("İşlenmeyen {ExceptionType}; {Method} {Path}; TraceId {TraceId}", error.GetType().FullName, context.Request.Method, context.Request.Path, context.TraceIdentifier);
     }
-    context.Response.StatusCode = status; var problem = new ProblemDetails { Status = status, Title = title, Detail = status == 401 ? "Kullanıcı adı veya şifre geçersiz ya da oturum kullanılamıyor." : status == 500 ? "Şu anda istek tamamlanamadı. Lütfen daha sonra tekrar deneyin." : error.Message };
+    context.Response.StatusCode = status; var problem = new ProblemDetails { Status = status, Title = title, Detail = status == 401 ? "Kullanıcı adı veya şifre geçersiz ya da oturum kullanılamıyor." : status == 404 ? "İstenen özet kullanılamıyor." : status == 500 ? "Şu anda istek tamamlanamadı. Lütfen daha sonra tekrar deneyin." : error.Message };
     if (error is RequestValidationException validation) problem.Extensions["errors"] = validation.Errors;
     if (error is UsernameConflictException) problem.Extensions["errors"] = new Dictionary<string, string[]> { ["username"] = ["Bu kullanıcı adı kullanılıyor."] };
     await context.Response.WriteAsJsonAsync(problem);

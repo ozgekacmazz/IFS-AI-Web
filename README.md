@@ -81,12 +81,12 @@ API uçları: `POST /api/auth/register`, `login`, `refresh`, `logout`; `GET /api
 
 ## Özetleme modeli
 
-- `POST /api/summaries`, kimliği doğrulanmış kullanıcının en fazla 12.000 karakterlik metnini Türkçe veya İngilizce özetler. Kullanıcı kimliği JWT claim'inden alınır.
-- `GET /api/summaries/recent`, yalnız mevcut kullanıcının en yeni üç başarılı özetini döndürür.
-- Application katmanındaki sağlayıcıdan bağımsız port, sürümlü `summary-v1` prompt oluşturucuyu Groq HTTP bağdaştırıcısından ayırır.
+- `POST /api/summaries`, kimliği doğrulanmış kullanıcının en fazla 12.000 karakterlik metnini Türkçe veya İngilizce özetler. Arayüzdeki “Kaynak metin” alanı ödevdeki prompt/metin girdisidir; ikinci bir düzenlenebilir prompt alanı yoktur. Kullanıcı kimliği JWT claim'inden alınır.
+- `GET /api/summaries/recent`, yalnız mevcut kullanıcının en yeni üç başarılı özetini kaynak metni içermeyen kompakt liste verisi olarak döndürür. `GET /api/summaries/{id}`, yalnız kayıt sahibi için başarılı ve süresi dolmamış kaydın tam kaynak metnini ve üretilen özeti talep üzerine döndürür; diğer bütün durumlar aynı güvenli 404 cevabını üretir.
+- Application katmanındaki sağlayıcıdan bağımsız port, backend'in kontrol ettiği sürümlü `summary-v1` prompt oluşturucuyu Groq HTTP bağdaştırıcısından ayırır. Kullanıcı sistem talimatını göremez veya değiştiremez.
 - Sağlayıcı çıktısı en fazla 500 token, HTTP zaman aşımı 30 saniyedir. İptal iletilir; belirsiz veya ücret doğurabilecek işlemler otomatik yeniden denenmez.
 - Özetleme POST isteği kullanıcı kimliğine göre sabit bir dakikalık pencerede beş istekle sınırlıdır. Limitleyici bellek içidir ve her API örneği için ayrıdır.
-- Tam girdi ve başarılı tam özet PostgreSQL'de tutulur. Başarısız denemelerde ham sağlayıcı cevabı yerine yalnız güvenli hata kategorisi saklanır. Her kayıt `ExpiresAtUtc = CreatedAtUtc + 30 gün` değerini taşır.
+- Başarılı tam kaynak metni ve tam özet PostgreSQL'de tutulur; kullanıcı saklama süresi içinde kendi kaydının ikisini de ayrıntı görünümünde okuyabilir. Başarısız sağlayıcı denemelerinde kaynak metin veya özet yerine yalnız güvenli operasyonel üst veri ve hata kategorisi saklanır. Her kayıt `ExpiresAtUtc = CreatedAtUtc + 30 gün` değerini taşır.
 - Uygulama loglarına tam girdi, prompt, özet, token, API anahtarı veya ham sağlayıcı hata gövdesi yazılmaz.
 - Zamanlanmış 30 günlük silme görevi, Admin kayıt ekranı ve yedi günlük istatistik grafiği sonraki fazlara bırakılmıştır; arayüz otomatik silmenin henüz uygulanmadığını açıkça belirtir.
 
