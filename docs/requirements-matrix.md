@@ -76,14 +76,14 @@ PDF'de “öneri”, “opsiyonel” veya “bonus” olarak işaretlenen hiçbi
 
 | ID | Konu | Tespit | İzlenecek karar |
 |---|---|---|---|
-| ACIK-01 | Giriş kimliği | PDF “e-posta/kullanıcı adı” ve tek `username_or_email` alanı diyor; ikisinin ayrı ayrı mı yoksa tek kimlik olarak mı destekleneceği açık değil. | Veri modeli öncesi tek alan veya ayrı benzersiz alanlar kararlaştırılacak. |
-| ACIK-02 | Kayıt yetkisi | Hem herkese açık “Kayıt Ol” hem adminin kullanıcı oluşturması isteniyor; açık kayıtta admin rolünün nasıl engelleneceği belirtilmiyor. | Açık kayıt yalnızca `user`; `admin` ataması yalnızca admin işlemi olarak önerilir. |
+| ACIK-01 | Giriş kimliği | **Phase 2'de çözüldü:** PDF'nin seçeneklerinden yalnız kullanıcı adı seçildi; e-posta kullanılmaz. | Normalleştirilmiş, büyük/küçük harfe duyarsız benzersiz kullanıcı adı uygulanır. |
+| ACIK-02 | Kayıt yetkisi | **Phase 2'de kısmen çözüldü:** Açık kayıt yalnızca `User` oluşturur; istemci rol gönderemez. PDF'deki admin kullanıcı oluşturma akışı sonraki fazdadır. | `Admin` rolü Phase 2'de yalnız kontrollü ilk yönetici seed mekanizmasıyla oluşturulur. |
 | ACIK-03 | Log içeriği | “Metinler ve/veya yanıtlar”, yalnız AI yanıtı ya da girdi+çıktı seçenekleri verilmiş; zorunlu saklama kapsamı ve süresi yok. Tek satırda kısa giriş istenmesi, hiç girdi saklamama seçeneğiyle gerilimli. | Mahremiyet, teslim kanıtı ve kaynak bağlantısı dikkate alınarak kapsam/saklama süresi seçilecek. |
 | ACIK-04 | Şifre işlemi | “Güncelleme/yenileme/sıfırlama” var; geçici şifre, kullanıcıya bildirim veya self-service unutulan şifre akışı tanımlı değil. | MVP'de admin tarafından yeni şifre atama ve oturum iptali önerilir; bildirim kapsam dışı kalabilir. |
-| ACIK-05 | Pasif kullanıcı | Pasife almanın mevcut erişim/refresh token'larına etkisi belirtilmiyor. | Her yenileme ve korumalı kritik işlemde aktiflik kontrolü, pasife almada token iptali önerilir. |
+| ACIK-05 | Pasif kullanıcı | **Phase 2'de çözüldü:** Pasif kullanıcı giriş/yenileme yapamaz ve eski access token ile korumalı uç noktalara erişemez. | Yenilemede ve yeniden kullanılabilir sunucu tarafı yetkilendirme politikasında aktiflik doğrulanır. |
 | ACIK-06 | LLM seçimi | Sağlayıcı/model, maliyet, veri yerleşimi, kota ve kabul edilebilir gecikme tanımlı değil. | Ölçütlerle ayrı sağlayıcı/model kararı alınacak; mimari sağlayıcıdan bağımsız kalacak. |
 | ACIK-07 | Girdi sınırı | Boş metin hatası anılıyor fakat minimum/maksimum uzunluk, desteklenen dil ve dosya girişi belirtilmiyor. | MVP yalnız düz metin; karakter/token sınırı sağlayıcı seçimiyle ölçülebilir biçimde belirlenecek. |
 | ACIK-08 | Özet kalitesi | “Kısa ve anlaşılır” dışında ölçülebilir kalite ölçütü bulunmuyor. | Gerçekçi örneklerden kabul veri seti ve kaynakta olmayan bilgi yasağı kullanılacak. |
 | ACIK-09 | Teknoloji | PDF teknoloji ve veritabanı türünü serbest bırakıyor. | ASP.NET Core 10, React TypeScript ve PostgreSQL bizim teknik seçimimizdir. |
-| ACIK-10 | Yetki modeli | Admin'in Ana Sayfa'ya erişip erişemeyeceği açık değil; yalnız admin paneli erişimi belirtiliyor. | Admin'in de özetleme yapıp yapamayacağı ürün kararı olarak netleştirilecek. |
+| ACIK-10 | Yetki modeli | **Phase 2'de çözüldü:** Admin, normal özetleme alanını da kullanabilir ve ayrıca admin alanlarına erişir. | Hem `User` hem `Admin` uygulama alanına; yalnız `Admin` yönetim alanına erişir. |
 | ACIK-11 | Kaynak bağlantısı | Kaynak cümle eşlemesinin kesinliği LLM çıktısına bağlıdır. | Cümle kimlikleri, şema doğrulaması ve geçersiz referansı reddetme kullanılacak; semantik doğruluk ayrıca değerlendirilecek. |

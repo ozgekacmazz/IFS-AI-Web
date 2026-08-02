@@ -1,39 +1,48 @@
 # IFS AI-Web
 
-IFS AI-Web, kullanıcı tarafından sağlanan metinleri ilerleyen fazlarda kontrollü bir LLM prompt akışıyla özetleyecek web uygulamasıdır. Bu depo ASP.NET Core ve React tabanlı uygulamanın Clean Architecture temellerini içerir.
+Phase 2, .NET 10 Clean Architecture API, React/TypeScript Vite SPA ve PostgreSQL üzerinde güvenli kayıt, giriş, oturum yenileme ve `User`/`Admin` yetkilendirme temelini sağlar. Özetleme ve LLM entegrasyonu henüz uygulanmamıştır.
 
-## Phase 1 kapsamı
+## Gereksinimler
 
-Bu faz yalnızca çalıştırılabilir proje temelini sağlar:
+- .NET SDK 10
+- Node.js ve npm
+- Docker Desktop / Docker Compose
+- EF Core CLI (`dotnet tool install --global dotnet-ef --version 10.*`)
 
-- .NET 10 üzerinde Domain, Application, Infrastructure ve API projeleri
-- Anonim `GET /health` uç noktası ve entegrasyon testi
-- React, TypeScript, Vite ve React Router tabanlı uygulama kabuğu
-- Türkçe başlangıç ve bulunamadı sayfaları
-- Yapılandırmadan okunan backend CORS origin listesi ve frontend API taban adresi
+## Güvenli yerel yapılandırma
 
-Kimlik doğrulama, PostgreSQL/veritabanı ve LLM entegrasyonu henüz uygulanmamıştır. Özetleme formu, kullanıcı/admin sayfaları ve kurumsal şablonlar da bu fazın kapsamında değildir.
+`.env.example` dosyasını `.env` olarak kopyalayın ve tüm `replace-...` yer tutucularını yalnız yerel güçlü değerlerle değiştirin. `.env` Git tarafından yok sayılır. API için aynı değerler environment variable olarak verilmelidir:
 
-## Önkoşullar
+```text
+ConnectionStrings__PostgreSql
+Jwt__SigningKey
+InitialAdmin__Username       (isteğe bağlı)
+InitialAdmin__Password       (isteğe bağlı)
+```
 
-- .NET SDK 10.0 veya uyumlu daha yeni .NET 10 SDK
-- Node.js 22.12 veya uyumlu daha yeni sürüm
-- npm 11 veya uyumlu sürüm
+JWT anahtarı en az 32 bayt olmalıdır. İlk yönetici yalnız iki seed değeri birlikte sağlandığında oluşturulur. Seed idempotenttir; var olan hesabı yükseltmez, şifreyi sıfırlamaz ve kullanıcı adı çakışmasında güvenli biçimde durur. Gerçek kimlik bilgilerini dosyaya yazmayın.
+
+## PostgreSQL ve migration
+
+```powershell
+docker compose config
+docker compose up -d postgres
+dotnet ef database update --project backend/src/IFS.AIWeb.Infrastructure --startup-project backend/src/IFS.AIWeb.Api
+docker compose stop postgres
+```
+
+Compose yalnız PostgreSQL çalıştırır; localhost `5432`, sağlık kontrolü ve `postgres_data` adlı kalıcı volume kullanılır. API normal başlangıçta migration uygulamaz.
 
 ## Backend
-
-Depo kökünden:
 
 ```powershell
 dotnet restore backend/IFS.AIWeb.slnx
 dotnet build backend/IFS.AIWeb.slnx --no-restore
 dotnet test backend/IFS.AIWeb.slnx --no-build
-dotnet run --project backend/src/IFS.AIWeb.Api/IFS.AIWeb.Api.csproj
+dotnet run --project backend/src/IFS.AIWeb.Api
 ```
 
-Backend geliştirme adresi: `http://localhost:5099`
-
-Sağlık kontrolü: `GET http://localhost:5099/health`
+Yerel API URL'si launch profile ile `http://localhost:5099`; anonim sağlık kontrolü `/health` adresindedir.
 
 ## Frontend
 
@@ -46,20 +55,24 @@ npm run build
 npm run dev
 ```
 
-Frontend geliştirme adresi: `http://localhost:5173`
+SPA varsayılan olarak `http://localhost:5173` adresindedir. Kullanıcı adı 3-32 karakterdir; Unicode NFKC ile normalize edilir, büyük/küçük harfe duyarsızdır ve yalnız harf, rakam, `.`, `_`, `-` kabul eder. Ad/soyad 1-80, şifre 12-128 karakterdir; passphrase kullanımına izin verilir.
 
-## Ortam değişkenleri
+## Oturum ve güvenlik modeli
 
-Frontend için örnek dosyayı yerel `.env` dosyasına kopyalayın:
+- Açık kayıt yalnız `User` oluşturur; istek rol veya e-posta kabul etmez.
+- Access token JWT'dir, 15 dakika geçerlidir ve SPA'da yalnız bellekte tutulur.
+- Refresh token 7 gün geçerlidir; yalnız `HttpOnly`, `SameSite=Strict`, üretimde `Secure`, `/api/auth` path cookie olarak taşınır ve veritabanında yalnız SHA-256 hash'i tutulur.
+- Her refresh token'ı döndürür. Eski/iptal edilmiş token'ın tekrar kullanımı ilgili token ailesini iptal eder.
+- Cookie kullanan refresh/logout çağrılarında yapılandırılmış kesin Origin listesi doğrulanır; CORS wildcard kullanmaz.
+- Pasif kullanıcı giriş/refresh yapamaz ve eski JWT ile korumalı endpoint'lere erişemez.
+- Yönetici kanıtı için seed ile oluşturulan Admin hesabıyla giriş yapıp `/app/admin-check` sayfası kullanılabilir; kimlik bilgileri kaynakta veya dokümantasyonda yer almaz.
 
-```powershell
-Copy-Item frontend/.env.example frontend/.env
-```
+API uçları: `POST /api/auth/register`, `login`, `refresh`, `logout`; `GET /api/auth/me`, `admin-check`.
 
-`VITE_API_BASE_URL`, backend taban adresini belirler. Örnek değer secret içermez:
+## Bilinen bağımlılık bildirimi
 
-```dotenv
-VITE_API_BASE_URL=http://localhost:5099
-```
+`npm audit`, React Router 7.18.2 için GHSA-qwww-vcr4-c8h2 bildirimini gösterebilir. Proje yalnız Vite `BrowserRouter` SPA'dır; React Server Components, Server Actions, Framework Mode server actions veya unstable RSC API kullanmaz. Bu nedenle bildirimin etkilenen işlevi bu mimaride kullanılmamaktadır; bulgu bastırılmaz ve audit sonucu temizmiş gibi sunulmaz.
 
-Backend geliştirme CORS origin listesi `backend/src/IFS.AIWeb.Api/appsettings.Development.json` içindeki `Cors:AllowedOrigins` bölümünden yönetilir. Gerçek API anahtarı, şifre veya bağlantı dizesi kaynak dosyalarına eklenmemelidir.
+## Kapsam dışında
+
+Özetleme/LLM, şablonlar, admin kullanıcı yönetimi, şifre sıfırlama/değiştirme, profil düzenleme, log ekranları, Docker ile API/SPA, CI/CD ve gerçek IFS entegrasyonu uygulanmamıştır.

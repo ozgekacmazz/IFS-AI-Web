@@ -64,8 +64,8 @@ PDF backend, frontend, veritabanı ve LLM sağlayıcısını yazılımcıya bır
 - **Karar:** **[Teknik karar]** Kısa ömürlü access token istemci belleğinde kullanılacak; refresh token `Secure`, `HttpOnly`, uygun `SameSite` öznitelikli cookie ile taşınacaktır. Refresh token düz metin yerine yalnız hash olarak, süre ve iptal bilgisiyle saklanacaktır. Refresh-token rotasyonu ve iptal kayıtları MVP kapsamındadır.
 - **Bağlam ve gerekçe:** **[PDF]** Giriş ve rol kontrolü ister; token biçimini belirtmez. HttpOnly cookie refresh token'ın JavaScript tarafından okunmasını önler, hash saklama veritabanı sızıntısının etkisini azaltır.
 - **Değerlendirilen alternatifler:** İki token'ı localStorage'da tutmak; sunucu tarafı cookie session; düz metin refresh token.
-- **Sonuçlar ve ödünleşimler:** Refresh endpoint'i için CSRF önlemi, güvenli cookie ayarı, rotasyon ve iptal kaydı gerekir. Logout, şifre değişimi ve pasife alma refresh token'ları iptal etmelidir. Token ailesine dayalı tekrar kullanım tespiti (reuse detection) MVP sonrasındaki güvenlik sıkılaştırma aşamasına bırakılmıştır. Bu erteleme, ele geçirilmiş ve döndürülmüş bir token'ın tekrar kullanıldığı bazı saldırıların MVP'de otomatik olarak saptanamayacağı bilinen güvenlik ödünleşimidir. Access token ömrü ve SameSite değeri dağıtım topolojisine göre seçilir.
-- **Mevcut durum:** MVP için hash saklama, rotasyon ve iptal kayıtları kabul edildi. **[Açık karar]** Kesin token ömürleri ile cookie domain/path ayarlarıdır; token ailesine dayalı tekrar kullanım tespitinin tasarımı gelecek güvenlik aşamasında kararlaştırılacaktır.
+- **Sonuçlar ve ödünleşimler:** Refresh endpoint'i için kesin Origin doğrulaması, güvenli cookie ayarı, rotasyon ve iptal kaydı gerekir. Logout ve pasife alma oturum kullanımını engeller. Token ailesine dayalı tekrar kullanım tespiti (reuse detection), döndürülmüş/iptal edilmiş token yeniden sunulduğunda ailenin etkin token'larını iptal eder.
+- **Mevcut durum:** **[Phase 2'de çözüldü]** Access token ömrü 15 dakika, refresh token ömrü 7 gündür. Refresh token yalnız hash olarak saklanır; her yenilemede döndürülür ve tekrar kullanım tespiti MVP kapsamındadır. Cookie `HttpOnly`, `SameSite=Strict`, üretimde `Secure` ve `/api/auth` path ayarlıdır.
 
 ### ADR-008 - Kontrollü prompt ve sürümleme
 
@@ -142,9 +142,9 @@ PDF backend, frontend, veritabanı ve LLM sağlayıcısını yazılımcıya bır
 ## 3. Çözülmemiş kararlar özeti
 
 - LLM sağlayıcısı, modeli, veri işleme bölgesi, maliyet/kota, timeout ve structured-output desteği.
-- Access token ve refresh token süreleri ile cookie dağıtım ayarları; token ailesine dayalı tekrar kullanım tespiti MVP sonrasına bırakılmıştır.
+- ~~Access token ve refresh token süreleri ile cookie dağıtım ayarları~~ **Phase 2'de çözüldü:** 15 dakika/7 gün, `HttpOnly`, `SameSite=Strict`, üretimde `Secure`, `/api/auth` path; token ailesi tekrar kullanım tespiti etkin.
 - Admin logunda saklanacak içerik, maskeleme sınırı, saklama süresi ve silme politikası.
-- Kullanıcı adı/e-posta veri modeli ve self-registration ayrıntıları.
+- ~~Kullanıcı adı/e-posta veri modeli ve self-registration ayrıntıları~~ **Phase 2'de çözüldü:** yalnız kullanıcı adı; açık kayıt her zaman `User`.
 - Girdi karakter/token sınırı ve kabul edilen kaynak dilleri.
 - Kurumsal şablonların kesin JSON şemaları ve ilk prompt sürümü.
 - Rate limit değerleri ve tek/çok instance dağıtım biçimi.

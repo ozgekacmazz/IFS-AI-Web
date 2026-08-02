@@ -24,7 +24,7 @@
 
 ## 3. Temel kullanıcı senaryoları
 
-1. **Kayıt ve giriş - [PDF]:** Ziyaretçi e-posta/kullanıcı adı ve şifreyle kaydolur; geçerli bilgilerle giriş yapar.
+1. **Kayıt ve giriş - [PDF]:** Ziyaretçi kullanıcı adı ve şifreyle kaydolur; geçerli bilgilerle giriş yapar. **[Ürün kararı]** MVP'de e-posta kullanılmaz.
 2. **Temel özetleme - [PDF]:** User tek metin alanına içerik girer, “Özetle”ye basar ve LLM özetini sonuç alanında görür.
 3. **Özeti yapılandırma - [Ürün kararı]:** User Türkçe/İngilizce dilini, uzunluğu, çıktı biçimini, hedef kitleyi ve kurumsal şablonu seçer.
 4. **Kaynağı izleme - [Ürün kararı]:** User bir özet cümlesinin/maddesinin dayandığı kaynak cümleleri açar.
@@ -37,7 +37,7 @@
 
 ### PDF'nin zorunlu kıldığı kapsam
 
-- Kayıt olma ve e-posta/kullanıcı adı + şifreyle giriş.
+- Kayıt olma ve kullanıcı adı + şifreyle giriş; self-registration her zaman `User` rolü oluşturur.
 - User için tek metin alanlı Ana Sayfa, “Özetle” eylemi ve sonuç alanı.
 - Prompt tabanlı LLM özetleme akışı.
 - Admin'e özel panel, log listesi ve kullanıcı yönetimi.
@@ -105,7 +105,7 @@ MVP aşağıdaki sınırlar sağlandığında ürün açısından kabul edilebil
 
 ## 8. Açık ürün kararları
 
-- Tek bir `username_or_email` değeri mi, ayrı kullanıcı adı ve e-posta mı kullanılacak?
+- **[Çözüldü - Phase 2]** Kimlik yalnız kullanıcı adıdır; e-posta alanı yoktur ve kullanıcı adı MVP'de değiştirilemez.
 - Admin Ana Sayfa'yı kullanabilecek mi?
 - Logda tam girdi, kısaltılmış girdi veya yalnız özet mi saklanacak; saklama süresi ne olacak?
 - Metin için karakter/token sınırı ve desteklenen kaynak diller neler olacak?
