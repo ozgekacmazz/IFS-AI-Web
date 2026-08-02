@@ -53,3 +53,38 @@ public sealed class RefreshToken
     public void Revoke(DateTimeOffset now, string reason, Guid? replacement = null)
     { if (RevokedAtUtc is null) { RevokedAtUtc = now; RevocationReason = reason; ReplacedByTokenId = replacement; } }
 }
+
+public enum SummaryLanguage { Turkish, English }
+public enum SummaryStatus { Succeeded, Failed }
+
+public sealed class SummaryRecord
+{
+    private SummaryRecord() { }
+    private SummaryRecord(Guid id, Guid userId, string input, string? summary, SummaryLanguage language,
+        SummaryStatus status, string provider, string model, string promptVersion, int inputCount,
+        int outputCount, long durationMs, DateTimeOffset created, string? failureCode)
+    { Id = id; UserId = userId; InputText = input; SummaryText = summary; RequestedLanguage = language;
+      Status = status; Provider = provider; Model = model; PromptVersion = promptVersion;
+      InputCharacterCount = inputCount; OutputCharacterCount = outputCount; DurationMilliseconds = durationMs;
+      CreatedAtUtc = created; ExpiresAtUtc = created.AddDays(30); FailureCode = failureCode; }
+    public Guid Id { get; private set; }
+    public Guid UserId { get; private set; }
+    public string InputText { get; private set; } = string.Empty;
+    public string? SummaryText { get; private set; }
+    public SummaryLanguage RequestedLanguage { get; private set; }
+    public SummaryStatus Status { get; private set; }
+    public string Provider { get; private set; } = string.Empty;
+    public string Model { get; private set; } = string.Empty;
+    public string PromptVersion { get; private set; } = string.Empty;
+    public int InputCharacterCount { get; private set; }
+    public int OutputCharacterCount { get; private set; }
+    public long DurationMilliseconds { get; private set; }
+    public DateTimeOffset CreatedAtUtc { get; private set; }
+    public DateTimeOffset ExpiresAtUtc { get; private set; }
+    public string? FailureCode { get; private set; }
+    public User User { get; private set; } = null!;
+    public static SummaryRecord Create(Guid userId, string input, string? summary, SummaryLanguage language,
+        SummaryStatus status, string provider, string model, string promptVersion, long durationMs,
+        DateTimeOffset now, string? failureCode = null) => new(Guid.NewGuid(), userId, input, summary, language,
+        status, provider, model, promptVersion, input.Length, summary?.Length ?? 0, durationMs, now, failureCode);
+}

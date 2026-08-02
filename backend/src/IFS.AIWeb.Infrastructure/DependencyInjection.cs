@@ -14,6 +14,10 @@ public static class DependencyInjection
         var jwt = configuration.GetSection("Jwt").Get<JwtOptions>() ?? new(); services.AddSingleton(jwt);
         services.AddScoped<IUserRepository, UserRepository>(); services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>(); services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddSingleton<IPasswordService, PasswordService>(); services.AddSingleton<IRefreshTokenService, RefreshTokenService>(); services.AddSingleton<IClock, SystemClock>(); services.AddSingleton<IAccessTokenService, AccessTokenService>();
+        var groq = configuration.GetSection("Groq").Get<GroqOptions>() ?? new();
+        if (groq.TimeoutSeconds is < 1 or > 120 || groq.MaxOutputTokens != 500 || !Uri.TryCreate(groq.BaseUrl, UriKind.Absolute, out _)) throw new InvalidOperationException("Groq yapılandırması geçersiz.");
+        services.AddSingleton(groq); services.AddScoped<ISummaryRepository, SummaryRepository>();
+        services.AddHttpClient<ILlmSummarizer, GroqSummarizer>(client => { client.BaseAddress = new Uri(groq.BaseUrl); client.Timeout = TimeSpan.FromSeconds(groq.TimeoutSeconds); });
         return services;
     }
 }

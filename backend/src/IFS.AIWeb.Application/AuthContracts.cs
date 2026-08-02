@@ -35,9 +35,37 @@ public static partial class AuthValidation
     }
     public static void Password(string password, string? confirmation = null)
     {
-        if (password is null || password.Length is < 12 or > 128) throw Validation("password", "Şifre 12-128 karakter olmalıdır.");
-        if (confirmation is not null && password != confirmation) throw Validation("passwordConfirmation", "Şifreler eşleşmiyor.");
+        var errors = PasswordErrors(password, confirmation);
+        if (errors.Count > 0) throw new RequestValidationException(errors);
     }
+
+    public static Dictionary<string, string[]> PasswordErrors(string? password, string? confirmation)
+    {
+        var passwordErrors = new List<string>();
+        if (password is null)
+            passwordErrors.Add("Şifre zorunludur.");
+        else
+        {
+            var length = password.EnumerateRunes().Count();
+            if (length < 8) passwordErrors.Add("Şifre en az 8 karakter olmalıdır.");
+            if (length > 128) passwordErrors.Add("Şifre en fazla 128 karakter olmalıdır.");
+            if (!password.EnumerateRunes().Any(r => Rune.GetUnicodeCategory(r) == UnicodeCategory.UppercaseLetter)) passwordErrors.Add("Şifre en az bir büyük harf içermelidir.");
+            if (!password.EnumerateRunes().Any(r => Rune.GetUnicodeCategory(r) == UnicodeCategory.LowercaseLetter)) passwordErrors.Add("Şifre en az bir küçük harf içermelidir.");
+            if (!password.EnumerateRunes().Any(r => Rune.GetUnicodeCategory(r) == UnicodeCategory.DecimalDigitNumber)) passwordErrors.Add("Şifre en az bir rakam içermelidir.");
+            if (!password.EnumerateRunes().Any(IsSpecial)) passwordErrors.Add("Şifre en az bir noktalama veya özel karakter içermelidir.");
+        }
+        var errors = new Dictionary<string, string[]>();
+        if (passwordErrors.Count > 0) errors["password"] = [.. passwordErrors];
+        if (confirmation is null) errors["passwordConfirmation"] = ["Şifre tekrarı zorunludur."];
+        else if (password is not null && password != confirmation) errors["passwordConfirmation"] = ["Şifreler eşleşmiyor."];
+        return errors;
+    }
+
+    private static bool IsSpecial(Rune rune) => Rune.GetUnicodeCategory(rune) is
+        UnicodeCategory.ConnectorPunctuation or UnicodeCategory.DashPunctuation or UnicodeCategory.OpenPunctuation or
+        UnicodeCategory.ClosePunctuation or UnicodeCategory.InitialQuotePunctuation or UnicodeCategory.FinalQuotePunctuation or
+        UnicodeCategory.OtherPunctuation or UnicodeCategory.MathSymbol or UnicodeCategory.CurrencySymbol or
+        UnicodeCategory.ModifierSymbol or UnicodeCategory.OtherSymbol;
     private static RequestValidationException Validation(string key, string message) => new(new() { [key] = [message] });
 }
 

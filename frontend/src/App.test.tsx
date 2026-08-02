@@ -10,8 +10,8 @@ describe('Phase 2 authentication UI', () => {
   it('keeps registration free of email and role inputs and validates confirmation', async () => {
     render(<MemoryRouter initialEntries={['/register']}><App /></MemoryRouter>)
     expect(screen.queryByLabelText(/e-posta/i)).not.toBeInTheDocument(); expect(screen.queryByLabelText(/rol/i)).not.toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Şifre'), { target: { value: 'uzun-bir-parola' } }); fireEvent.change(screen.getByLabelText('Şifre tekrarı'), { target: { value: 'farkli-bir-parola' } }); fireEvent.click(screen.getByRole('button', { name: 'Hesap oluştur' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('Şifreler eşleşmiyor')
+    fireEvent.change(screen.getByLabelText('Şifre'), { target: { value: 'Valid123!' } }); fireEvent.change(screen.getByLabelText('Şifre tekrarı'), { target: { value: 'Different123!' } }); fireEvent.click(screen.getByRole('button', { name: 'Hesap oluştur' }))
+    expect(await screen.findByText('Şifreler eşleşmiyor.')).toBeVisible()
   })
   it('waits for restoration before redirecting anonymous users', async () => {
     render(<MemoryRouter initialEntries={['/app']}><App /></MemoryRouter>); expect(screen.getByRole('status')).toHaveTextContent('Oturum kontrol ediliyor'); expect(await screen.findByRole('heading', { name: 'Giriş yap' })).toBeVisible()
@@ -20,9 +20,9 @@ describe('Phase 2 authentication UI', () => {
     render(<MemoryRouter initialEntries={['/login']}><App /></MemoryRouter>); fireEvent.change(screen.getByLabelText('Kullanıcı adı'), { target: { value: 'someone' } }); fireEvent.change(screen.getByLabelText('Şifre'), { target: { value: 'wrong-password' } }); fireEvent.click(screen.getByRole('button', { name: 'Giriş yap' })); expect(await screen.findByRole('alert')).toHaveTextContent('Kullanıcı adı veya şifre geçersiz')
   })
   it('establishes authenticated UI without browser storage', async () => {
-    const fetchMock = vi.mocked(fetch); fetchMock.mockImplementationOnce(() => json({}, 401)).mockImplementationOnce(() => json({ accessToken: 'opaque', user: { username: 'test', firstName: 'Test', lastName: 'User', role: 'User' } }))
+    const fetchMock = vi.mocked(fetch); fetchMock.mockImplementation((url) => String(url).endsWith('/api/auth/login') ? json({ accessToken: 'opaque', user: { username: 'test', firstName: 'Test', lastName: 'User', role: 'User' } }) : String(url).endsWith('/api/summaries/recent') ? json([]) : json({}, 401))
     const storageSpy = vi.spyOn(Storage.prototype, 'setItem'); render(<MemoryRouter initialEntries={['/login']}><App /></MemoryRouter>); await waitFor(() => expect(fetchMock).toHaveBeenCalled())
-    fireEvent.change(screen.getByLabelText('Kullanıcı adı'), { target: { value: 'test' } }); fireEvent.change(screen.getByLabelText('Şifre'), { target: { value: 'long-passphrase' } }); fireEvent.click(screen.getByRole('button', { name: 'Giriş yap' })); expect(await screen.findByText(/Kullanıcı adı: test/)).toBeVisible(); expect(storageSpy).not.toHaveBeenCalled()
+    fireEvent.change(screen.getByLabelText('Kullanıcı adı'), { target: { value: 'test' } }); fireEvent.change(screen.getByLabelText('Şifre'), { target: { value: 'long-passphrase' } }); fireEvent.click(screen.getByRole('button', { name: 'Giriş yap' })); expect(await screen.findByText('@test')).toBeVisible(); expect(storageSpy).not.toHaveBeenCalled(); expect(screen.queryByRole('link', { name: 'Giriş' })).not.toBeInTheDocument(); expect(screen.queryByRole('link', { name: 'Kayıt' })).not.toBeInTheDocument()
   })
   it('shows forbidden content to a User on the Admin route', async () => {
     vi.mocked(fetch).mockImplementationOnce(() => json({ accessToken: 'opaque', user: { username: 'member', firstName: 'Member', lastName: 'User', role: 'User' } }))

@@ -54,10 +54,10 @@ PDF backend, frontend, veritabanı ve LLM sağlayıcısını yazılımcıya bır
 ### ADR-006 - Değiştirilebilir LLM sağlayıcı soyutlaması
 
 - **Karar:** **[Teknik karar]** Application katmanı sağlayıcıdan bağımsız bir özetleme portu ve istek/yanıt modelleri tanımlar; Infrastructure seçilen sağlayıcıyı uygular.
-- **Bağlam ve gerekçe:** **[PDF]** Sağlayıcı serbesttir. Henüz sağlayıcı/model seçilmemiştir.
+- **Bağlam ve gerekçe:** **[PDF]** Sağlayıcı serbesttir. Phase 3 için ilk sağlayıcı Groq seçilmiştir; iş kuralları sağlayıcıdan bağımsız kalır.
 - **Değerlendirilen alternatifler:** Sağlayıcı SDK'sını doğrudan kullanım senaryosunda çağırmak; birden çok sağlayıcıyı ilk günden çalıştırmak.
 - **Sonuçlar ve ödünleşimler:** Sağlayıcı değişimi ve sahte test kolaylaşır. Soyutlama yalnız ihtiyaç duyulan ortak yetenekleri kapsar; ilk sürümde tek aktif sağlayıcı yeterlidir.
-- **Mevcut durum:** Soyutlama kabul edildi; **[Açık karar]** sağlayıcı, model, SDK, veri bölgesi, kota, maliyet ve timeout değerleri seçilmedi.
+- **Mevcut durum:** **[Phase 3'te kısmen çözüldü]** Groq HTTP API, değiştirilebilir `openai/gpt-oss-120b` modeli, 30 saniye timeout ve 500 token çıktı sınırı seçildi. Otomatik retry yoktur. Veri bölgesi, üretim kotası ve maliyet doğrulaması açıktır.
 
 ### ADR-007 - Access ve refresh token oturumu
 
@@ -73,7 +73,7 @@ PDF backend, frontend, veritabanı ve LLM sağlayıcısını yazılımcıya bır
 - **Bağlam ve gerekçe:** **[PDF]** Prompt tabanlı akış ve basit bir şablon önerir. Ürün, dil/uzunluk/biçim/hedef kitle/şablon seçenekleri ve bilgi uydurmama kuralı getirir.
 - **Değerlendirilen alternatifler:** Kullanıcı metnini string interpolation ile doğrudan talimata eklemek; promptları admin panelinden düzenlemek.
 - **Sonuçlar ve ödünleşimler:** Tekrarlanabilirlik ve denetlenebilirlik artar; prompt injection tamamen ortadan kalkmaz. MVP'de promptlar kod/yapılandırma içinde sürümlü ve gözden geçirilmiş olur; prompt yönetim sistemi kurulmaz.
-- **Mevcut durum:** Kabul edildi; ilk prompt metni ve değerlendirme seti açık karardır.
+- **Mevcut durum:** **[Phase 3'te kısmen çözüldü]** İlk kontrollü prompt `summary-v1` olarak uygulandı; kalite değerlendirme veri seti açık karardır.
 
 ### ADR-009 - Yapılandırılmış AI yanıtı ve şema doğrulama
 
@@ -89,7 +89,7 @@ PDF backend, frontend, veritabanı ve LLM sağlayıcısını yazılımcıya bır
 - **Bağlam ve gerekçe:** **[PDF bonusu]** Rate limit bonus olarak belirtilmiştir. Ayrıca maliyet ve kötüye kullanım kontrolü sağlar.
 - **Değerlendirilen alternatifler:** IP limiti; yalnız sağlayıcı kotasına güvenmek; ilk sürümde limit koymamak.
 - **Sonuçlar ve ödünleşimler:** 429 cevabı ve anlaşılır retry bilgisi gerekir. Çoklu instance durumunda dağıtık sayaç gerekebilir; MVP tek instance ise yerleşik limiter yeterlidir.
-- **Mevcut durum:** Uygulanması önerildi; limit değeri ve dağıtım topolojisi açık.
+- **Mevcut durum:** **[Phase 3'te uygulandı]** Kimliği doğrulanmış kullanıcı başına sabit bir dakikalık pencerede beş özetleme isteği; altıncı istekte 429 ve `Retry-After`. Sayaç bellek içi ve API örneği başınadır; çoklu instance dağıtık limit kararı ileriki ölçekleme aşamasındadır.
 
 ### ADR-011 - Log maskeleme, mahremiyet ve denetim kaydı
 
@@ -97,7 +97,7 @@ PDF backend, frontend, veritabanı ve LLM sağlayıcısını yazılımcıya bır
 - **Bağlam ve gerekçe:** **[PDF]** Admin logu ister, girdi/çıktı saklama seçeneklerini açık bırakır; uzun girdi maskelemesini bonus sayar. Kullanıcı metni hassas olabilir.
 - **Değerlendirilen alternatifler:** Her şeyi tam saklamak; yalnız yanıtı saklamak; hiç içerik saklamamak.
 - **Sonuçlar ve ödünleşimler:** Mahremiyet iyileşir, hata inceleme ayrıntısı azalabilir. Kim, ne zaman, hangi prompt/provider sürümüyle işlem yaptı ve sonuç durumu gibi üst veriler denetlenebilirlik sağlar. İçerik saklama kapsamı, erişim ve silme/saklama süresi kararlaştırılmalıdır.
-- **Mevcut durum:** Maskeleme ilkesi kabul edildi; **[Açık karar]** admin log içeriği ve saklama süresi (retention).
+- **Mevcut durum:** **[Phase 3'te kısmen çözüldü]** Tam girdi ve başarılı tam özet 30 gün saklanır; başarısız denemelerde yalnız güvenli hata kategorisi tutulur. Teknik loglara içerik yazılmaz. Admin önizleme biçimi ve zamanlanmış silme görevi açıktır.
 
 ### ADR-012 - Merkezi hata yönetimi
 
@@ -141,9 +141,9 @@ PDF backend, frontend, veritabanı ve LLM sağlayıcısını yazılımcıya bır
 
 ## 3. Çözülmemiş kararlar özeti
 
-- LLM sağlayıcısı, modeli, veri işleme bölgesi, maliyet/kota, timeout ve structured-output desteği.
+- ~~LLM sağlayıcısı, modeli ve timeout~~ **Phase 3'te kısmen çözüldü:** Groq, değiştirilebilir `openai/gpt-oss-120b`, 30 saniye timeout ve 500 token; veri işleme bölgesi, üretim maliyeti/kotası ve sonraki yapılandırılmış çıktı desteği açıktır.
 - ~~Access token ve refresh token süreleri ile cookie dağıtım ayarları~~ **Phase 2'de çözüldü:** 15 dakika/7 gün, `HttpOnly`, `SameSite=Strict`, üretimde `Secure`, `/api/auth` path; token ailesi tekrar kullanım tespiti etkin.
-- Admin logunda saklanacak içerik, maskeleme sınırı, saklama süresi ve silme politikası.
+- **Phase 3'te kısmen çözüldü:** Tam girdi ve başarılı tam özet 30 gün saklanır; Admin önizleme biçimi, erişimi ve zamanlanmış silme politikası açıktır.
 - ~~Kullanıcı adı/e-posta veri modeli ve self-registration ayrıntıları~~ **Phase 2'de çözüldü:** yalnız kullanıcı adı; açık kayıt her zaman `User`.
 - Girdi karakter/token sınırı ve kabul edilen kaynak dilleri.
 - Kurumsal şablonların kesin JSON şemaları ve ilk prompt sürümü.

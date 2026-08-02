@@ -7,6 +7,7 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options) : DbC
 {
     public DbSet<User> Users => Set<User>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<SummaryRecord> SummaryRecords => Set<SummaryRecord>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         var user = modelBuilder.Entity<User>(); user.ToTable("users"); user.HasKey(x => x.Id);
@@ -23,5 +24,17 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options) : DbC
         token.Property(x => x.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamp with time zone"); token.Property(x => x.ExpiresAtUtc).HasColumnName("expires_at_utc").HasColumnType("timestamp with time zone"); token.Property(x => x.RevokedAtUtc).HasColumnName("revoked_at_utc").HasColumnType("timestamp with time zone");
         token.Property(x => x.ReplacedByTokenId).HasColumnName("replaced_by_token_id"); token.Property(x => x.RevocationReason).HasColumnName("revocation_reason").HasMaxLength(100);
         token.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+
+        var summary = modelBuilder.Entity<SummaryRecord>(); summary.ToTable("summary_records"); summary.HasKey(x => x.Id);
+        summary.Property(x => x.Id).HasColumnName("id"); summary.Property(x => x.UserId).HasColumnName("user_id");
+        summary.Property(x => x.InputText).HasColumnName("input_text").HasMaxLength(12000).IsRequired(); summary.Property(x => x.SummaryText).HasColumnName("summary_text").HasMaxLength(8000);
+        summary.Property(x => x.RequestedLanguage).HasColumnName("requested_language").HasConversion<string>().HasMaxLength(16);
+        summary.Property(x => x.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(16);
+        summary.Property(x => x.Provider).HasColumnName("provider").HasMaxLength(32); summary.Property(x => x.Model).HasColumnName("model").HasMaxLength(128);
+        summary.Property(x => x.PromptVersion).HasColumnName("prompt_version").HasMaxLength(32); summary.Property(x => x.InputCharacterCount).HasColumnName("input_character_count"); summary.Property(x => x.OutputCharacterCount).HasColumnName("output_character_count");
+        summary.Property(x => x.DurationMilliseconds).HasColumnName("duration_milliseconds"); summary.Property(x => x.FailureCode).HasColumnName("failure_code").HasMaxLength(32);
+        summary.Property(x => x.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamp with time zone"); summary.Property(x => x.ExpiresAtUtc).HasColumnName("expires_at_utc").HasColumnType("timestamp with time zone");
+        summary.HasIndex(x => new { x.UserId, x.Status, x.CreatedAtUtc }).HasDatabaseName("ix_summary_records_user_status_created"); summary.HasIndex(x => x.ExpiresAtUtc).HasDatabaseName("ix_summary_records_expires_at"); summary.HasIndex(x => x.CreatedAtUtc).HasDatabaseName("ix_summary_records_created_at");
+        summary.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
     }
 }

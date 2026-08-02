@@ -62,7 +62,7 @@
 
 ### PDF'deki opsiyonel/bonus özellikler
 
-- Kullanıcının son üç özetini görmesi (**opsiyonel**).
+- Kullanıcının yalnız kendi en yeni üç başarılı özetini görmesi (**opsiyonel; ürün kararıyla Phase 3'e alındı**).
 - Mimari, AI entegrasyonu ve sınırlılıkları içeren kısa teknik rapor (**opsiyonel**).
 - Kullanıcı başına oran sınırlama (**bonus; güvenlik nedeniyle erken uygulanması önerilir**).
 - Uzun girdide yalnız ilk X karakteri loglama (**bonus; mahremiyet nedeniyle erken uygulanması önerilir**).
@@ -73,7 +73,7 @@
 
 - Şablonların yönetilebilir hâle getirilmesi; ilk sürümde kod/yapılandırma ile sınırlı sabit şablonlar yeterlidir.
 - Kaynak bağlantılarının kullanıcı geri bildirimiyle kalite değerlendirmesi.
-- Saklama politikası tanımlandıktan sonra kullanıcının son üç özet geçmişi.
+- Admin kayıt ekranı için güvenli kısa önizleme ve zamanlanmış 30 günlük saklama temizliği.
 
 ## 6. Kapsam dışı
 
@@ -100,15 +100,15 @@ MVP aşağıdaki sınırlar sağlandığında ürün açısından kabul edilebil
 - Türkçe ve İngilizce seçimleri çıktı dilini belirler; arayüz ilk açılışta Türkçedir.
 - User doğrudan URL veya API çağrısıyla admin işlevlerine erişemez; Admin log ve kullanıcı yönetimi işlemlerini yapabilir.
 - Şifreler ve refresh token'lar düz metin saklanmaz; API anahtarları kaynak kodda bulunmaz.
-- Logların tam girdi/çıktı saklama kapsamı ve saklama süresi canlı kullanımdan önce yazılı karara bağlanır.
+- **[Phase 3 kararı]** Tam girdi ve başarılı tam özet 30 gün saklanır; her kayda son kullanma zamanı eklenir. Zamanlanmış silme görevi henüz uygulanmamıştır.
 - Teslim README'si temiz ortam adımlarını, ekran görüntüleri PDF'deki üç kanıt grubunu kapsar.
 
 ## 8. Açık ürün kararları
 
 - **[Çözüldü - Phase 2]** Kimlik yalnız kullanıcı adıdır; e-posta alanı yoktur ve kullanıcı adı MVP'de değiştirilemez.
 - Admin Ana Sayfa'yı kullanabilecek mi?
-- Logda tam girdi, kısaltılmış girdi veya yalnız özet mi saklanacak; saklama süresi ne olacak?
+- **[Phase 3'te kısmen çözüldü]** Tam girdi ve başarılı tam özet 30 gün saklanır; Admin önizleme biçimi, erişimi ve zamanlanmış silme görevi sonraki fazda netleştirilecektir.
 - Metin için karakter/token sınırı ve desteklenen kaynak diller neler olacak?
 - Şablonların MVP'deki kesin alanları ve “uygun olduğunda” gösterilecek bölümlerin kuralları neler olacak?
-- Son üç özet özelliği MVP'ye alınacak mı?
-- LLM sağlayıcı/model, maliyet, gecikme, veri işleme ve kota ölçütlerine göre hangisi olacak?
+- **[Phase 3'te çözüldü]** Son üç başarılı özet MVP kapsamına alındı ve yalnız kayıt sahibi tarafından görülebilir.
+- **[Phase 3'te kısmen çözüldü]** İlk sağlayıcı Groq, değiştirilebilir model `openai/gpt-oss-120b`, timeout 30 saniye ve çıktı sınırı 500 tokendır. Üretim maliyeti, veri işleme bölgesi ve kota doğrulaması açıktır.

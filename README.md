@@ -1,6 +1,6 @@
 # IFS AI-Web
 
-Phase 2, .NET 10 Clean Architecture API, React/TypeScript Vite SPA ve PostgreSQL üzerinde güvenli kayıt, giriş, oturum yenileme ve `User`/`Admin` yetkilendirme temelini sağlar. Özetleme ve LLM entegrasyonu henüz uygulanmamıştır.
+Phase 3, .NET 10 Clean Architecture API, React/TypeScript Vite SPA ve PostgreSQL üzerinde güvenli kimlik doğrulama ile prompt tabanlı Türkçe/İngilizce metin özetleme akışını sağlar.
 
 ## Gereksinimler
 
@@ -21,6 +21,14 @@ InitialAdmin__Password       (isteğe bağlı)
 ```
 
 JWT anahtarı en az 32 bayt olmalıdır. İlk yönetici yalnız iki seed değeri birlikte sağlandığında oluşturulur. Seed idempotenttir; var olan hesabı yükseltmez, şifreyi sıfırlamaz ve kullanıcı adı çakışmasında güvenli biçimde durur. Gerçek kimlik bilgilerini dosyaya yazmayın.
+
+Groq anahtarını API başlangıç projesinin .NET User Secrets deposuna ekleyin:
+
+```powershell
+dotnet user-secrets set "Groq:ApiKey" "<your-groq-api-key>" --project backend/src/IFS.AIWeb.Api
+```
+
+İlk sağlayıcı Groq, değiştirilebilir varsayılan model `openai/gpt-oss-120b`'dir. Anahtar yalnız backend tarafından kullanılır; frontend'e, loglara veya izlenen yapılandırma dosyalarına yazılmaz.
 
 ## PostgreSQL ve migration
 
@@ -55,7 +63,9 @@ npm run build
 npm run dev
 ```
 
-SPA varsayılan olarak `http://localhost:5173` adresindedir. Kullanıcı adı 3-32 karakterdir; Unicode NFKC ile normalize edilir, büyük/küçük harfe duyarsızdır ve yalnız harf, rakam, `.`, `_`, `-` kabul eder. Ad/soyad 1-80, şifre 12-128 karakterdir; passphrase kullanımına izin verilir.
+SPA varsayılan olarak `http://localhost:5173` adresindedir. Kullanıcı adı 3-32 karakterdir; Unicode NFKC ile normalize edilir, büyük/küçük harfe duyarsızdır ve yalnız harf, rakam, `.`, `_`, `-` kabul eder. Ad/soyad 1-80 karakterdir. Şifre 8-128 Unicode karakter olmalı ve en az bir büyük harf, küçük harf, rakam ile noktalama/özel karakter içermelidir. Şifre trim veya normalize edilmez; boşluk kullanılabilir ancak özel karakter koşulunu tek başına karşılamaz.
+
+Özet başlıkları backend tarafından saklanmaz; kaynak/özet metninden frontend'de deterministik olarak türetilir ve kayıt yeniden yüklendiğinde yeniden oluşturulur. API şu anda yalnız son üç başarılı kaydı sağladığı için Kitaplık bu kapsamı dürüstçe gösterir. Sabitleme sunucuyla eşitlenmez; yalnız hassas olmayan özet kimlikleri `ifs-aiweb:pinned-summary-ids` anahtarı altında browser-local görünüm tercihi olarak saklanır. Access token hâlâ yalnız uygulama belleğindedir.
 
 ## Oturum ve güvenlik modeli
 
@@ -69,10 +79,21 @@ SPA varsayılan olarak `http://localhost:5173` adresindedir. Kullanıcı adı 3-
 
 API uçları: `POST /api/auth/register`, `login`, `refresh`, `logout`; `GET /api/auth/me`, `admin-check`.
 
+## Özetleme modeli
+
+- `POST /api/summaries`, kimliği doğrulanmış kullanıcının en fazla 12.000 karakterlik metnini Türkçe veya İngilizce özetler. Kullanıcı kimliği JWT claim'inden alınır.
+- `GET /api/summaries/recent`, yalnız mevcut kullanıcının en yeni üç başarılı özetini döndürür.
+- Application katmanındaki sağlayıcıdan bağımsız port, sürümlü `summary-v1` prompt oluşturucuyu Groq HTTP bağdaştırıcısından ayırır.
+- Sağlayıcı çıktısı en fazla 500 token, HTTP zaman aşımı 30 saniyedir. İptal iletilir; belirsiz veya ücret doğurabilecek işlemler otomatik yeniden denenmez.
+- Özetleme POST isteği kullanıcı kimliğine göre sabit bir dakikalık pencerede beş istekle sınırlıdır. Limitleyici bellek içidir ve her API örneği için ayrıdır.
+- Tam girdi ve başarılı tam özet PostgreSQL'de tutulur. Başarısız denemelerde ham sağlayıcı cevabı yerine yalnız güvenli hata kategorisi saklanır. Her kayıt `ExpiresAtUtc = CreatedAtUtc + 30 gün` değerini taşır.
+- Uygulama loglarına tam girdi, prompt, özet, token, API anahtarı veya ham sağlayıcı hata gövdesi yazılmaz.
+- Zamanlanmış 30 günlük silme görevi, Admin kayıt ekranı ve yedi günlük istatistik grafiği sonraki fazlara bırakılmıştır; arayüz otomatik silmenin henüz uygulanmadığını açıkça belirtir.
+
 ## Bilinen bağımlılık bildirimi
 
 `npm audit`, React Router 7.18.2 için GHSA-qwww-vcr4-c8h2 bildirimini gösterebilir. Proje yalnız Vite `BrowserRouter` SPA'dır; React Server Components, Server Actions, Framework Mode server actions veya unstable RSC API kullanmaz. Bu nedenle bildirimin etkilenen işlevi bu mimaride kullanılmamaktadır; bulgu bastırılmaz ve audit sonucu temizmiş gibi sunulmaz.
 
 ## Kapsam dışında
 
-Özetleme/LLM, şablonlar, admin kullanıcı yönetimi, şifre sıfırlama/değiştirme, profil düzenleme, log ekranları, Docker ile API/SPA, CI/CD ve gerçek IFS entegrasyonu uygulanmamıştır.
+Kurumsal şablonlar, kaynak bağlantılı özetler, admin kullanıcı yönetimi, şifre sıfırlama/değiştirme, profil düzenleme, Admin log ekranları, zamanlanmış saklama temizliği, Docker ile API/SPA, CI/CD ve gerçek IFS entegrasyonu uygulanmamıştır.
