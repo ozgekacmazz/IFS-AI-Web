@@ -1,0 +1,6 @@
+@IFS.AIWeb.Api_HostAddress = http://localhost:5099
+
+GET {{IFS.AIWeb.Api_HostAddress}}/health
+Accept: application/json
+
+###

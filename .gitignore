@@ -1,0 +1,39 @@
+# .NET
+**/bin/
+**/obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Node and frontend outputs
+**/node_modules/
+**/dist/
+**/.vite/
+**/coverage/
+
+# Environment files (safe templates remain tracked)
+**/.env
+**/.env.*
+!**/.env.example
+
+# IDE and editor files
+.vs/
+.vscode/
+.idea/
+*.code-workspace
+
+# Test artifacts
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+
+# OS and temporary files
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.tmp
+*.temp
+*.swp
+*~

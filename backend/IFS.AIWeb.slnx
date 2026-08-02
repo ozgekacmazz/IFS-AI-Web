@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/IFS.AIWeb.Api/IFS.AIWeb.Api.csproj" />
+    <Project Path="src/IFS.AIWeb.Application/IFS.AIWeb.Application.csproj" />
+    <Project Path="src/IFS.AIWeb.Domain/IFS.AIWeb.Domain.csproj" />
+    <Project Path="src/IFS.AIWeb.Infrastructure/IFS.AIWeb.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/IFS.AIWeb.Application.Tests/IFS.AIWeb.Application.Tests.csproj" />
+    <Project Path="tests/IFS.AIWeb.Domain.Tests/IFS.AIWeb.Domain.Tests.csproj" />
+    <Project Path="tests/IFS.AIWeb.IntegrationTests/IFS.AIWeb.IntegrationTests.csproj" />
+  </Folder>
+</Solution>
