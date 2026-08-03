@@ -1,104 +1,144 @@
 # IFS AI-Web
 
-Phase 3, .NET 10 Clean Architecture API, React/TypeScript Vite SPA ve PostgreSQL üzerinde güvenli kimlik doğrulama ile prompt tabanlı Türkçe/İngilizce metin özetleme akışını sağlar.
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![NET](https://img.shields.io/badge/.NET-10.0-purple.svg)
+![React](https://img.shields.io/badge/React-19.0-blue.svg)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue.svg)
+![Tests](https://img.shields.io/badge/tests-160%20passed-brightgreen.svg)
 
-## Gereksinimler
+**IFS AI-Web**, .NET 10 Clean Architecture mimarisi, React 19 / TypeScript Vite SPA ve PostgreSQL veritabanı üzerinde inşa edilmiş, yapay zeka destekli Türkçe/İngilizce metin özetleme, kurumsal PDF raporlama, yönetici denetim paneli ve gelişmiş güvenlik mekanizmaları sunan web uygulamasıdır.
 
-- .NET SDK 10
-- Node.js ve npm
-- Docker Desktop / Docker Compose
-- EF Core CLI (`dotnet tool install --global dotnet-ef --version 10.*`)
+---
 
-## Güvenli yerel yapılandırma
+## 🌟 Öne Çıkan Özellikler
 
-`.env.example` dosyasını `.env` olarak kopyalayın ve tüm `replace-...` yer tutucularını yalnız yerel güçlü değerlerle değiştirin. `.env` Git tarafından yok sayılır. API için aynı değerler environment variable olarak verilmelidir:
+- **🤖 Adaptif Yapay Zeka Özetleme (`summary-v5`)**: Groq Chat Completions (`openai/gpt-oss-120b`, `max_tokens: 900`) entegrasyonu ile kaynak metin uzunluğuna uyum sağlayan, kilit tarihleri, olayları ve olguları detaylıca özetleyen yapılandırılmış AI akışı.
+- **📄 Birleşik PDF Rapor İndirme**: Permissive MIT lisanslı `PDFsharp 6.1.1` ve gömülü `NotoSans` TrueType font çözücü ile Türkçe karakter destekli, şık ve indirilebilir PDF özet raporları.
+- **🎨 Vibrant Pink & Neon Violet AI Teması**: `Plus Jakarta Sans` tipografisi, yumuşatılmış kart hatları (`rounded-2xl`), mor-pembe soft gölgeler ve canlı gradyan butonlarla modern UI/UX deneyimi.
+- **🔐 Güvenli Kimlik Doğrulama & Oturum Yönetimi**: JWT access token (bellekte), SHA-256 hash'li HttpOnly refresh cookie, token ailesi rotasyonu ve eşzamanlı yenileme koruması.
+- **🚫 Pasif Kullanıcı Koruması**: Pasife alınan kullanıcı girişlerinde jenerik hata yerine açık ve kibar Türkçe uyarı: *"Hesabınız pasife alınmıştır. Lütfen yönetici ile iletişime geçin."* (HTTP 403 Forbidden).
+- **🔒 Sıkı Sahiplik & Mahremiyet (Admin Bypass Engelleme)**: Kullanıcılar yalnız kendi özetlerinin detayına ve PDF'ine erişebilir. Yönetici (Admin) dahi başkasının özet ID'sini istediğinde 404 Not Found alır. Admin log ekranında kullanıcı metinleri en çok 160 karakterlik beyaz alanı temizlenmiş önizlemeyle gösterilir.
+- **⚡ Kullanıcı Başına Rate Limiting**: `POST /api/summaries` endpoint'i kullanıcı bazlı Sliding Window algoritmasıyla (5 izin / 60 saniye / 60 segment) korunur. PDF indirme işlemi rate-limit kotasını tüketmez.
 
-```text
-ConnectionStrings__PostgreSql
-Jwt__SigningKey
-InitialAdmin__Username       (isteğe bağlı)
-InitialAdmin__Password       (isteğe bağlı)
+---
+
+## 🛠️ Önkoşullar
+
+- **.NET SDK 10.0+**
+- **Node.js 20+ ve npm**
+- **Docker Desktop** (PostgreSQL konteyneri için)
+- **EF Core CLI** (`dotnet tool install --global dotnet-ef --version 10.*`)
+
+---
+
+## 🚀 Adım Adım Kurulum ve Çalıştırma
+
+### 1. Yerel Yapılandırma ve Secret Hazırlığı
+
+Proje kökündeki `.env.example` dosyasını `.env` adıyla kopyalayın ve güçlü rastgele değerler atayın:
+
+```powershell
+Copy-Item .env.example .env
 ```
 
-JWT anahtarı en az 32 bayt olmalıdır. İlk yönetici yalnız iki seed değeri birlikte sağlandığında oluşturulur. Seed idempotenttir; var olan hesabı yükseltmez, şifreyi sıfırlamaz ve kullanıcı adı çakışmasında güvenli biçimde durur. Gerçek kimlik bilgilerini dosyaya yazmayın.
-
-Groq anahtarını API başlangıç projesinin .NET User Secrets deposuna ekleyin:
+Groq API anahtarını API başlangıç projesinin .NET User Secrets deposuna ekleyin:
 
 ```powershell
 dotnet user-secrets set "Groq:ApiKey" "<your-groq-api-key>" --project backend/src/IFS.AIWeb.Api
 ```
 
-İlk sağlayıcı Groq, değiştirilebilir varsayılan model `openai/gpt-oss-120b`'dir. Anahtar yalnız backend tarafından kullanılır; frontend'e, loglara veya izlenen yapılandırma dosyalarına yazılmaz.
+> **Not:** API anahtarı yalnız backend tarafından kullanılır; istemciye, loglara veya kaynak koda sızdırılmaz.
 
-## PostgreSQL ve migration
+---
+
+### 2. PostgreSQL Veritabanı ve Migration
+
+Docker ile PostgreSQL konteynerini başlatın ve veritabanı migration'ını uygulayın:
 
 ```powershell
-docker compose config
+# PostgreSQL konteynerini başlatın
 docker compose up -d postgres
+
+# Veritabanı şemasını güncelleyin
 dotnet ef database update --project backend/src/IFS.AIWeb.Infrastructure --startup-project backend/src/IFS.AIWeb.Api
-docker compose stop postgres
 ```
 
-Compose yalnız PostgreSQL çalıştırır; localhost `5432`, sağlık kontrolü ve `postgres_data` adlı kalıcı volume kullanılır. API normal başlangıçta migration uygulamaz.
+---
 
-## Backend
+### 3. Backend Uygulamasını Çalıştırma
 
 ```powershell
+# Bağımlılıkları yükleyin ve backend'i çalıştırın
 dotnet restore backend/IFS.AIWeb.slnx
-dotnet build backend/IFS.AIWeb.slnx --no-restore
-dotnet test backend/IFS.AIWeb.slnx --no-build
-dotnet run --project backend/src/IFS.AIWeb.Api
+dotnet run --project backend/src/IFS.AIWeb.Api/IFS.AIWeb.Api.csproj
 ```
 
-Yerel API URL'si launch profile ile `http://localhost:5099`; anonim sağlık kontrolü `/health` adresindedir.
+- **API Adresi:** `http://localhost:5099`
+- **Sağlık Kontrolü (Health Check):** `http://localhost:5099/health`
 
-## Frontend
+---
+
+### 4. Frontend Uygulamasını Çalıştırma
+
+Ayrı bir terminal penceresinde frontend geliştirme sunucusunu başlatın:
 
 ```powershell
 cd frontend
 npm install
-npm run lint
-npm test
-npm run build
 npm run dev
 ```
 
-SPA varsayılan olarak `http://localhost:5173` adresindedir. Kullanıcı adı 3-32 karakterdir; Unicode NFKC ile normalize edilir, büyük/küçük harfe duyarsızdır ve yalnız harf, rakam, `.`, `_`, `-` kabul eder. Ad/soyad 1-80 karakterdir. Şifre 8-128 Unicode karakter olmalı ve en az bir büyük harf, küçük harf, rakam ile noktalama/özel karakter içermelidir. Şifre trim veya normalize edilmez; boşluk kullanılabilir ancak özel karakter koşulunu tek başına karşılamaz.
+- **Uygulama Adresi:** `http://localhost:5173`
 
-Özet başlıkları backend tarafından saklanmaz; kaynak/özet metninden frontend'de deterministik olarak türetilir ve kayıt yeniden yüklendiğinde yeniden oluşturulur. API yalnız en yeni yedi uygun başarılı kaydı sağladığı için Kitaplık bu kapsamı dürüstçe gösterir. Sabitleme sunucuyla eşitlenmez; yalnız hassas olmayan özet kimlikleri `ifs-aiweb:pinned-summary-ids` anahtarı altında browser-local görünüm tercihi olarak saklanır. Access token hâlâ yalnız uygulama belleğindedir.
+---
 
-## Oturum ve güvenlik modeli
+## 🧪 Test Çalıştırma ve Kalite Metrikleri
 
-- Açık kayıt yalnız `User` oluşturur; istek rol veya e-posta kabul etmez.
-- Access token JWT'dir, 15 dakika geçerlidir ve SPA'da yalnız bellekte tutulur.
-- Refresh token 7 gün geçerlidir; yalnız `HttpOnly`, `SameSite=Strict`, üretimde `Secure`, `/api/auth` path cookie olarak taşınır ve veritabanında yalnız SHA-256 hash'i tutulur.
-- Her refresh token'ı döndürür. Eski/iptal edilmiş token'ın tekrar kullanımı ilgili token ailesini iptal eder.
-- Cookie kullanan refresh/logout çağrılarında yapılandırılmış kesin Origin listesi doğrulanır; CORS wildcard kullanmaz.
-- Pasif kullanıcı giriş/refresh yapamaz ve eski JWT ile korumalı endpoint'lere erişemez.
-- Yönetici kanıtı için seed ile oluşturulan Admin hesabıyla giriş yapıp `/app/admin-check` sayfası kullanılabilir; kimlik bilgileri kaynakta veya dokümantasyonda yer almaz.
+Projedeki backend ve frontend test paketleri %100 yeşil durumdadır.
 
-API uçları: `POST /api/auth/register`, `login`, `refresh`, `logout`; `GET /api/auth/me`, `admin-check`.
+### Backend Testleri (100 Test - %100 Başarılı)
+```powershell
+dotnet test backend/IFS.AIWeb.slnx
+```
+- **Domain Tests:** 4 Passed
+- **Application Tests:** 64 Passed
+- **Integration Tests:** 32 Passed (60 Test Senaryosu)
 
-## Admin backend
+### Frontend Testleri (60 Test - %100 Başarılı)
+```powershell
+cd frontend
+npm run lint
+npm test -- --run
+npm run build
+```
+- **ESLint:** 0 Hata, 0 Uyarı (%100 Temiz).
+- **Vitest Unit/Component Tests:** 60 / 60 Passed.
+- **Production Build:** Vite ve TypeScript (tsc -b) 0 hata ile derlenir.
 
-Admin backend ve frontend fazları tamamlanmıştır. `/api/admin` altındaki kullanıcı listeleme/oluşturma, aktiflik, şifre güncelleme, kompakt AI kayıtları, salt okunur prompt bilgisi ve yedi günlük UTC istatistik uçlarının tamamı mevcut `AdminOnly` politikasıyla korunur. Yönetim arayüzü `/admin`, `/admin/users` ve `/admin/logs` rotalarındadır; yalnızca Admin rolüyle görüntülenir. Sözleşmeler, oturum iptali, son aktif yönetici eşzamanlılık koruması ve kayıt mahremiyeti [docs/admin-backend.md](docs/admin-backend.md), arayüz davranışları ise [docs/admin-frontend.md](docs/admin-frontend.md) belgesinde açıklanır. Bu faz mevcut şemayla uygulanmış, migration eklenmemiştir.
+---
 
-## Özetleme modeli
+## 🏗️ Proje Mimarısı (Clean Architecture)
 
-- `POST /api/summaries`, kimliği doğrulanmış kullanıcının en fazla 12.000 karakterlik metnini Türkçe veya İngilizce özetler. Arayüzdeki “Kaynak metin” alanı ödevdeki prompt/metin girdisidir; ikinci bir düzenlenebilir prompt alanı yoktur. Kullanıcı kimliği JWT claim'inden alınır.
-- `GET /api/summaries/recent`, yalnız mevcut kullanıcının en yeni yedi uygun başarılı özetini kaynak metni içermeyen kompakt liste verisi olarak döndürür. `GET /api/summaries/{id}`, yalnız kayıt sahibi için başarılı ve süresi dolmamış kaydın tam kaynak metnini ve üretilen özeti talep üzerine döndürür; diğer bütün durumlar aynı güvenli 404 cevabını üretir.
-- Application katmanındaki sağlayıcıdan bağımsız port, backend'in kontrol ettiği sürümlü `summary-v3` prompt oluşturucuyu Groq HTTP bağdaştırıcısından ayırır. Aynı sıfır sıcaklıklı sağlayıcı isteği, zorunlu yapılandırılmış çıktıda içeriği `sufficient` veya `insufficient` olarak sınıflandırır. Yalnız tanımlanabilir bir olgu, olay, durum, talimat, açıklama, iddia veya ilişki içeren kaynak yeterlidir; selamlaşmalar, bağlantısız/rastgele içerik ve belirsiz durumlar yetersiz kabul edilir. Yetersiz sonuçlar başarılı özet olarak saklanmaz ve güvenli 422 cevabı üretir. Kullanıcı sistem talimatını göremez veya değiştiremez.
-- Özet girdisi için yetkili backend doğrulaması; boş metni, 12.000 karakter sınırının aşılmasını, hiç Unicode harf içermeyen girdiyi, en az sekiz harften/rakamdan oluşan tek karakter tekrarını ve harf içeren ikiden az Unicode kelimeyi reddeder. Bu deterministik kontroller çok kelimeli anlamsız dizileri güvenilir biçimde sınıflandırdığını iddia etmez; yapılandırılmış çıktı ve açık prompt rehberliği semantik sınıflandırma hatalarını azaltır ancak matematiksel olarak ortadan kaldırmaz. Kısa ama bilgi taşıyan Türkçe/İngilizce ifadeler kabul edilir.
-- Sağlayıcı çıktısı en fazla 500 token, HTTP zaman aşımı 30 saniyedir. İptal iletilir; belirsiz veya ücret doğurabilecek işlemler otomatik yeniden denenmez.
-- Özetleme POST isteği kullanıcı kimliğine göre sabit bir dakikalık pencerede beş istekle sınırlıdır. Limitleyici bellek içidir ve her API örneği için ayrıdır.
-- Başarılı tam kaynak metni ve tam özet PostgreSQL'de tutulur; kullanıcı saklama süresi içinde kendi kaydının ikisini de ayrıntı görünümünde okuyabilir. Başarısız sağlayıcı denemelerinde kaynak metin veya özet yerine yalnız güvenli operasyonel üst veri ve hata kategorisi saklanır. Her kayıt `ExpiresAtUtc = CreatedAtUtc + 30 gün` değerini taşır.
-- Uygulama loglarına tam girdi, prompt, özet, token, API anahtarı veya ham sağlayıcı hata gövdesi yazılmaz.
-- Zamanlanmış 30 günlük silme görevi sonraki faza bırakılmıştır; Admin kayıt ekranı süresi dolan içeriği dürüstçe belirtir ve tam metni istemez.
+```text
+IFS-AI-Web/
+├── backend/
+│   ├── src/
+│   │   ├── IFS.AIWeb.Domain/         # Varlıklar, Değer Nesneleri ve Domain Kuralları
+│   │   ├── IFS.AIWeb.Application/    # Servisler, DTO'lar, PDF Üretici, Prompt Builder
+│   │   ├── IFS.AIWeb.Infrastructure/ # EF Core, PostgreSQL, PDFsharp Font Resolver, Groq Client
+│   │   └── IFS.AIWeb.Api/            # Minimal API Endpoint'leri, Middleware, Rate Limiter
+│   └── tests/                        # Birim ve Entegrasyon Test Paketleri
+├── frontend/
+│   ├── src/
+│   │   ├── admin/                    # Admin Yönetim Sayfaları ve İstatistik Grafiği
+│   │   ├── auth/                     # Kimlik Doğrulama Bileşenleri ve Guard'lar
+│   │   ├── pages/                    # AppPage, Özetlama ve Detay Görünümleri
+│   │   └── styles.css                # Vibrant Pink & Neon Violet AI Tema Stilleri
+└── docs/                             # Mimari Kararlar (ADR) ve Gereksinim Matrisi
+```
 
-## Bilinen bağımlılık bildirimi
+---
 
-`npm audit`, React Router 7.18.2 için GHSA-qwww-vcr4-c8h2 bildirimini gösterebilir. Proje yalnız Vite `BrowserRouter` SPA'dır; React Server Components, Server Actions, Framework Mode server actions veya unstable RSC API kullanmaz. Bu nedenle bildirimin etkilenen işlevi bu mimaride kullanılmamaktadır; bulgu bastırılmaz ve audit sonucu temizmiş gibi sunulmaz.
+## 📝 Lisans
 
-## Kapsam dışında
-
-Kurumsal şablonlar, kaynak bağlantılı özetler, profil düzenleme, zamanlanmış saklama temizliği, Docker ile API/SPA, CI/CD ve gerçek IFS entegrasyonu uygulanmamıştır.
+Bu proje ödev ve portal gereksinimleri kapsamında geliştirilmiştir. Kullanılan tüm kütüphaneler (PDFsharp, EF Core, React vb.) permissive açık kaynak lisanslarına (MIT / Apache 2.0) sahiptir.

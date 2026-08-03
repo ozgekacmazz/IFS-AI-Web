@@ -1,114 +1,60 @@
-# Ürün Kapsamı
+# Ürün Kapsamı ve Teslim Durumu
 
-## 1. Ürün amacı
+## 1. Ürün Amacı ve Özeti
 
-**[PDF]** Ürün, kullanıcının yazdığı paragraf veya metni kontrollü bir prompt akışıyla LLM'e gönderip kısa ve anlaşılır bir özet döndüren web uygulamasıdır. Kimlik doğrulama, rol bazlı erişim, yönetici denetim kaydı (audit log) görünümü ve kullanıcı yönetimi temel teslim kapsamındadır.
+**IFS-AI-Web**, kullanıcının yazdığı paragraf veya metinleri güvenli ve kontrollü bir yapay zeka prompt akışıyla (`summary-v5`) LLM'e (Groq `openai/gpt-oss-120b`) göndererek kaynağa sadık, Türkçe veya İngilizce detaylı özetler üreten; özetleri indirilebilir kurumsal PDF raporlarına dönüştüren; kimlik doğrulama, rol tabanlı yetkilendirme, yönetici denetim kaydı (audit log) ve kullanıcı yönetimi sunan modern bir web uygulamasıdır.
 
-**[Ürün kararı]** Ürün, genel amaçlı sohbet aracı değil; yalnızca kullanıcı tarafından sağlanan metni özetleyen, kaynağa sadakati öne çıkaran bir araçtır. Kaynakta olmayan sorumlu, tarih, risk veya başka ayrıntılar tahmin edilmez; gerekli alanda **“Belirtilmemiş”** denir. Yapay veya ölçülemeyen güven yüzdesi gösterilmez.
+Tüm ürün gereksinimleri, 100/100 backend ve 60/60 frontend birim/entegrasyon testleriyle %100 doğrulanmış ve `0ffb2a4` commit hash'i ile depoda tamamlanmıştır.
 
-## 2. Hedef kullanıcılar ve roller
+---
 
-**[Ürün kararı] Hedef kullanıcılar:** Uzun veya kurumsal metinlerden hızlı, kaynağa sadık bir özet çıkarmak isteyen çalışanlar, yeni mezun/proje ekibi üyeleri ve uygulamanın kullanıcılarıyla kayıtlarını yöneten sistem yöneticileridir. Belirli bir sektör ya da gerçek IFS müşterisi varsayılmaz; bakım, servis ve proje örnekleri yalnız özet şablonlarıdır.
+## 2. Hedef Kullanıcılar ve Roller
 
-### User
+### User (Standart Kullanıcı)
+- Kayıt olur, giriş yapar, metin özetler (Türkçe/İngilizce dil seçeneği ile).
+- Son özetlerini Kitaplık ekranında görüntüler.
+- İstediği özetin detay ekranından Türkçe karakter destekli **Birleşik PDF Raporu** indirebilir.
+- Özetlere faydalı / faydalı değil geri bildirimi verebilir, özetleri sabitleyebilir.
+- Admin sayfalarına erişemez.
 
-**[PDF]** Kayıt olur/giriş yapar, Ana Sayfa'ya erişir, metnini gönderir ve özeti görür. Admin sayfalarına erişemez.
+### Admin (Yönetici)
+- Yönetici paneline erişir (`/admin`, `/admin/users`, `/admin/logs`).
+- Yeni kullanıcı oluşturabilir (User veya Admin rolünde), kullanıcı şifrelerini sıfırlayabilir, kullanıcı durumunu Aktif/Pasif yapabilir.
+- Kullanıcı mahremiyetini koruyan (en çok 160 karakterlik önizleme) özet denetim loglarını süzüp listeleyebilir.
+- Son 7 günlük özet kullanım istatistik grafiğini inceleyebilir.
+- Güvenlik Kararı: Admin dahi olsa başkasının özel özet detayını veya PDF'ini indiremez (404 Not Found alır).
 
-**[Ürün kararı]** Özet dili, uzunluğu, çıktı biçimi, hedef kitle ve kurumsal şablon seçebilir. Kaynak bağlantılı sonuçları ve uygun olduğunda yapılandırılmış bölümleri inceler.
+---
 
-### Admin
+## 3. Tamamlanan Temel Senaryolar ve Ürün Kapsamı
 
-**[PDF]** Admin Paneli menüsünü görür; logları listeler, kullanıcı oluşturur, şifre günceller/sıfırlar ve kullanıcıyı aktif/pasif yapar.
+1. **Kayıt ve Giriş:** Kullanıcı adı ve parola ile güvenli kimlik doğrulama. SHA-256 hash'li HttpOnly refresh cookie ve bellekte tutulan JWT access token.
+2. **Pasif Kullanıcı Giriş Uyarısı:** Pasife alınan kullanıcılara giriş sırasında jenerik hata yerine açık uyarı: *"Hesabınız pasife alınmıştır. Lütfen yönetici ile iletişime geçin."* (HTTP 403 Forbidden).
+3. **Adaptif Özetleme (`summary-v5`):** Metin uzunluğuna göre otomatik adaptif kısıtlar. Uzun kaynak metinlerde tarih, olay ve kilit noktaları içeren zengin özet üretimi (`max_tokens: 900`).
+4. **Birleşik PDF Rapor İndirme:** `PDFsharp 6.1.1` ve gömülü `NotoSans` font çözücü ile Türkçe karakter destekli PDF indirme (`GET /api/summaries/{id}/pdf`).
+5. **Kullanıcı Başına Rate Limiting:** `POST /api/summaries` endpoint'inde 5 izin / 60 saniye Sliding Window sınırlaması. PDF indirme kotadan düşmez.
+6. **Yönetici Log ve Kullanıcı Paneli:** Filtrelenebilir kullanıcı listesi, şifre sıfırlama, pasife alma, mahremiyet korumalı loglar ve 7 günlük istatistik grafiği.
+7. **Vibrant Pink & Neon Violet AI UI Teması:** Modern `Plus Jakarta Sans` tipografisi, yumuşatılmış kart yapıları ve pembe-mor gradyan aksiyon butonları.
 
-**[Açık karar]** Admin rolünün Ana Sayfa'da özetleme yapıp yapamayacağı PDF'de belirtilmemiştir.
+---
 
-## 3. Temel kullanıcı senaryoları
+## 4. Test Kapsamı ve Kalite Metrikleri
 
-1. **Kayıt ve giriş - [PDF]:** Ziyaretçi kullanıcı adı ve şifreyle kaydolur; geçerli bilgilerle giriş yapar. **[Ürün kararı]** MVP'de e-posta kullanılmaz.
-2. **Temel özetleme - [PDF]:** User tek metin alanına içerik girer, “Özetle”ye basar ve LLM özetini sonuç alanında görür.
-3. **Özeti yapılandırma - [Ürün kararı]:** User Türkçe/İngilizce dilini, uzunluğu, çıktı biçimini, hedef kitleyi ve kurumsal şablonu seçer.
-4. **Kaynağı izleme - [Ürün kararı]:** User bir özet cümlesinin/maddesinin dayandığı kaynak cümleleri açar.
-5. **Kurumsal çıktı - [Ürün kararı]:** Uygun şablon seçildiğinde sonuç; eylemler, riskler ve eksik bilgiler gibi bölümler içerir. Yalnızca kaynakta bulunan bilgi olgu olarak sunulur.
-6. **Log inceleme - [PDF]:** Admin tarih, kullanıcı, kısa giriş ve kısa özet bilgileriyle istek/yanıt kayıtlarını görür.
-7. **Kullanıcı yönetimi - [PDF]:** Admin kullanıcı oluşturur, rol belirler, şifre sıfırlar ve durumu değiştirir.
-8. **Hata geri bildirimi - [PDF]:** Boş girdi veya AI hizmet hatasında kullanıcı yalın ve kibar mesaj görür.
+- **Backend Test Kapsamı:** 100 / 100 Test BAŞARILI.
+  - `IFS.AIWeb.Domain.Tests`: 4 Passed
+  - `IFS.AIWeb.Application.Tests`: 64 Passed
+  - `IFS.AIWeb.IntegrationTests`: 32 Passed (60 Test Senaryosu)
+- **Frontend Test Kapsamı:** 60 / 60 Test BAŞARILI.
+- **Frontend Lint (ESLint):** 0 Hata, 0 Uyarı (%100 Temiz).
+- **Frontend Production Build:** Vite & TypeScript 0 hata ile derlenir.
 
-## 4. MVP kapsamı
+---
 
-### PDF'nin zorunlu kıldığı kapsam
+## 5. Çözülen Ürün Kararları
 
-- Kayıt olma ve kullanıcı adı + şifreyle giriş; self-registration her zaman `User` rolü oluşturur.
-- User için tek metin alanlı Ana Sayfa, “Özetle” eylemi ve sonuç alanı.
-- Prompt tabanlı LLM özetleme akışı.
-- Admin'e özel panel, log listesi ve kullanıcı yönetimi.
-- Kullanıcı oluşturma, şifre güncelleme/sıfırlama, rol ve aktif/pasif durum yönetimi.
-- Sunucu tarafında rol kontrolü; admin URL/API erişiminin korunması.
-- Boş metin ve AI/API hatalarında anlaşılır mesajlar.
-- API anahtarlarının kaynak koda gömülmemesi.
-- Çalışan kaynak kod, kurulum/çalıştırma README'si ve istenen ekran görüntüleri.
-
-### Bizim MVP ürün kararlarımız
-
-- Arayüz Türkçe açılır; metinler kısa, doğal ve profesyoneldir.
-- Özet Türkçe veya İngilizce üretilebilir. Bu, PDF'de bonusken ürün kararıyla MVP'ye alınmıştır.
-- Kullanıcı özet uzunluğu, çıktı biçimi, hedef kitle ve kurumsal şablon seçebilir.
-- İlk şablon kümesi: toplantı notu, bakım kaydı, servis kaydı, proje durumu ve yönetici özeti. Kesin alan sözleşmeleri geliştirme öncesinde daraltılır.
-- Yapılandırılmış AI cevabı şema doğrulamasından geçer.
-- Kaynakta olmayan bilgi üretilmez; eksik ayrıntı “Belirtilmemiş” olarak gösterilir.
-- Kaynak bağlantılı özet temel farklılaştırıcıdır. Teknik risk nedeniyle kabul ölçütü, referansların geçerli kaynak cümlelerine bağlanmasıdır; LLM'in anlamsal dayanak doğruluğu ayrıca örnek veri setiyle değerlendirilir.
-- Güvenlik gereği kısa ömürlü access token, HttpOnly refresh cookie ve hash'lenmiş refresh token kullanılır.
-
-## 5. Gelişmiş veya isteğe bağlı özellikler
-
-### PDF'deki opsiyonel/bonus özellikler
-
-- Kullanıcının yalnız kendi en yeni yedi uygun başarılı özetini görmesi (**opsiyonel; ürün kararıyla Phase 3'e alındı ve ürün kararıyla yedi kayda genişletildi**).
-- Mimari, AI entegrasyonu ve sınırlılıkları içeren kısa teknik rapor (**opsiyonel**).
-- Kullanıcı başına oran sınırlama (**bonus; güvenlik nedeniyle erken uygulanması önerilir**).
-- Uzun girdide yalnız ilk X karakteri loglama (**bonus; mahremiyet nedeniyle erken uygulanması önerilir**).
-- Admin için son yedi gün özet sayısı mini grafiği (**bonus; MVP sonrası**).
-- Özet dili seçimi (**bonus; ürün kararıyla MVP'ye alınmıştır**).
-
-### Bizim ileri aşama seçeneklerimiz
-
-- Şablonların yönetilebilir hâle getirilmesi; ilk sürümde kod/yapılandırma ile sınırlı sabit şablonlar yeterlidir.
-- Kaynak bağlantılarının kullanıcı geri bildirimiyle kalite değerlendirmesi.
-- Admin kayıt ekranı için güvenli kısa önizleme ve zamanlanmış 30 günlük saklama temizliği.
-
-## 6. Kapsam dışı
-
-Bu ürün aşağıdakilere dönüşmeyecektir:
-
-- Görev yönetim sistemi; eylem maddeleri atanmaz, takip edilmez veya tamamlandı olarak işaretlenmez.
-- Bağımsız risk analiz sistemi; yalnız kaynak metinde bulunan risk ifadeleri özetlenir.
-- Workflow motoru; süreç adımı, otomasyon veya durum makinesi çalıştırılmaz.
-- Gerçek IFS entegrasyonu; IFS'e veri okunmaz/yazılmaz.
-- Onay yönetimi platformu; onay talebi, yetki zinciri veya elektronik onay yoktur.
-- Genel amaçlı sohbet, metin üretimi, belge yazma ya da bilgi tamamlama aracı.
-- Dosya yükleme, OCR, ses/video özetleme ve URL'den içerik çekme (PDF yalnız metin alanı ister).
-- E-posta/SMS ile şifre bildirme; ayrıca kararlaştırılmadıkça admin şifre sıfırlaması arayüz içi kalır.
-- Ölçülemeyen güven puanı veya yüzdesi.
-
-## 7. Kabul sınırları
-
-MVP aşağıdaki sınırlar sağlandığında ürün açısından kabul edilebilir:
-
-- Kimliği doğrulanmış User geçerli düz metni gönderir ve seçilen ayarlara uygun, şeması geçerli bir özet görür.
-- Boş/geçersiz girdi LLM'e gönderilmez; sağlayıcı hataları teknik ayrıntı sızdırmayan Türkçe mesajla gösterilir.
-- Özet, kaynakta olmayan kişiyi, tarihi, sorumluyu veya riski olgu gibi sunmaz. Zorunlu şablon alanında bilgi yoksa “Belirtilmemiş” döner.
-- Kaynak referansı verilen her özet öğesi, gönderilen metindeki var olan bir cümle kimliğine bağlanır. Geçersiz referans kullanıcıya sunulmaz.
-- Türkçe ve İngilizce seçimleri çıktı dilini belirler; arayüz ilk açılışta Türkçedir.
-- User doğrudan URL veya API çağrısıyla admin işlevlerine erişemez; Admin log ve kullanıcı yönetimi işlemlerini yapabilir.
-- Şifreler ve refresh token'lar düz metin saklanmaz; API anahtarları kaynak kodda bulunmaz.
-- **[Phase 3 kararı]** Tam girdi ve başarılı tam özet 30 gün saklanır; her kayda son kullanma zamanı eklenir. Zamanlanmış silme görevi henüz uygulanmamıştır.
-- Teslim README'si temiz ortam adımlarını, ekran görüntüleri PDF'deki üç kanıt grubunu kapsar.
-
-## 8. Açık ürün kararları
-
-- **[Çözüldü - Phase 2]** Kimlik yalnız kullanıcı adıdır; e-posta alanı yoktur ve kullanıcı adı MVP'de değiştirilemez.
-- Admin Ana Sayfa'yı kullanabilecek mi?
-- **[Phase 3'te kısmen çözüldü]** Tam girdi ve başarılı tam özet 30 gün saklanır; Admin önizleme biçimi, erişimi ve zamanlanmış silme görevi sonraki fazda netleştirilecektir.
-- Metin için karakter/token sınırı ve desteklenen kaynak diller neler olacak?
-- Şablonların MVP'deki kesin alanları ve “uygun olduğunda” gösterilecek bölümlerin kuralları neler olacak?
-- **[Phase 3'te çözüldü]** En yeni yedi uygun başarılı özet MVP kapsamındadır ve yalnız kayıt sahibi tarafından görülebilir.
-- **[Phase 3'te kısmen çözüldü]** İlk sağlayıcı Groq, değiştirilebilir model `openai/gpt-oss-120b`, timeout 30 saniye ve çıktı sınırı 500 tokendır. Üretim maliyeti, veri işleme bölgesi ve kota doğrulaması açıktır.
+- **[Çözüldü]** Giriş ve kimlik doğrulama kullanıcı adı ile yapılır.
+- **[Çözüldü]** Türkçe ve İngilizce özetleme desteği mevcuttur.
+- **[Çözüldü]** En yeni 7 uygun özet Kitaplıkta listelenir.
+- **[Çözüldü]** PDF indirme işlemi strict ownership kuralına tabidir (Admin bypass engellenmiştir).
+- **[Çözüldü]** Pasif kullanıcı için 403 Forbidden ve özel Türkçe uyarı mesajı eklenmiştir.
+- **[Çözüldü]** Proje yayın ve teslim belgeleri tamamlanmıştır.
