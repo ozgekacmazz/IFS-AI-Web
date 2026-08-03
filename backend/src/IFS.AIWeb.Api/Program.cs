@@ -55,7 +55,7 @@ auth.MapGet("/admin-check", () => Results.Ok(new { message = "Yönetici yetkilen
 var summaryApi = app.MapGroup("/api/summaries").RequireAuthorization();
 summaryApi.MapPost("/", async (SummarizeRequest request, ClaimsPrincipal principal, SummarizationService service, CancellationToken ct) =>
     Results.Ok(await service.SummarizeAsync(new(Guid.Parse(principal.FindFirstValue(JwtRegisteredClaimNames.Sub)!), request.Text, request.Language), ct)))
-    .RequireRateLimiting("SummaryPerUser").WithMetadata(new RequestSizeLimitAttribute(20_000));
+    .RequireRateLimiting("SummaryPerUser").WithMetadata(new RequestSizeLimitAttribute(128 * 1024));
 summaryApi.MapGet("/recent", async (ClaimsPrincipal principal, SummarizationService service, CancellationToken ct) =>
     Results.Ok(await service.RecentAsync(Guid.Parse(principal.FindFirstValue(JwtRegisteredClaimNames.Sub)!), ct)));
 summaryApi.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, SummarizationService service, CancellationToken ct) =>
@@ -69,7 +69,7 @@ static CookieOptions CookieOptions(HttpContext context, DateTimeOffset expires) 
 static void ValidateOrigin(HttpContext context, string[] allowed) { var origin = context.Request.Headers.Origin.ToString(); if (string.IsNullOrWhiteSpace(origin) || !allowed.Contains(origin, StringComparer.Ordinal)) throw new BadHttpRequestException("İstek kaynağına izin verilmiyor.", 403); }
 static async Task WriteError(HttpContext context)
 {
-    var error = context.Features.Get<IExceptionHandlerFeature>()!.Error; var (status, title) = error switch { RequestValidationException => (400, "Doğrulama hatası"), AuthenticationFailedException => (401, "Kimlik doğrulama başarısız"), AdminUserNotFoundException => (404, "Kullanıcı bulunamadı"), UsernameConflictException => (409, "Kullanıcı adı kullanılıyor"), AdminSelfDeactivationException => (409, "İşlem uygulanamadı"), AdminLastActiveException => (409, "İşlem uygulanamadı"), SummaryNotFoundException => (404, "Özet bulunamadı"), SummarizationFailedException { Kind: LlmFailureKind.Timeout } => (504, "Özetleme zaman aşımına uğradı"), SummarizationFailedException { Kind: LlmFailureKind.RateLimited } => (503, "Özetleme hizmeti meşgul"), SummarizationFailedException => (502, "Özetleme hizmeti kullanılamıyor"), BadHttpRequestException bad => (bad.StatusCode, "İstek reddedildi"), _ => (500, "Beklenmeyen hata") };
+    var error = context.Features.Get<IExceptionHandlerFeature>()!.Error; var (status, title) = error switch { RequestValidationException => (400, "Doğrulama hatası"), AuthenticationFailedException => (401, "Kimlik doğrulama başarısız"), AdminUserNotFoundException => (404, "Kullanıcı bulunamadı"), UsernameConflictException => (409, "Kullanıcı adı kullanılıyor"), AdminSelfDeactivationException => (409, "İşlem uygulanamadı"), AdminLastActiveException => (409, "İşlem uygulanamadı"), SummaryNotFoundException => (404, "Özet bulunamadı"), InsufficientSummaryContentException => (422, "Yetersiz içerik"), SummarizationFailedException { Kind: LlmFailureKind.Timeout } => (504, "Özetleme zaman aşımına uğradı"), SummarizationFailedException { Kind: LlmFailureKind.RateLimited } => (503, "Özetleme hizmeti meşgul"), SummarizationFailedException => (502, "Özetleme hizmeti kullanılamıyor"), BadHttpRequestException bad => (bad.StatusCode, "İstek reddedildi"), _ => (500, "Beklenmeyen hata") };
     if (status == 500)
     {
         var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("SafeExceptionHandler");
@@ -84,6 +84,7 @@ static async Task WriteError(HttpContext context)
         AdminSelfDeactivationException => "Kendi hesabınızı pasife alamazsınız.",
         AdminLastActiveException => "Son aktif yönetici hesabı pasife alınamaz.",
         SummaryNotFoundException => "İstenen özet kullanılamıyor.",
+        InsufficientSummaryContentException => "Bu metinde özetlenebilecek yeterli ve anlamlı içerik bulunamadı.",
         SummarizationFailedException { Kind: LlmFailureKind.Timeout } => "Özetleme hizmeti zamanında yanıt vermedi.",
         SummarizationFailedException { Kind: LlmFailureKind.RateLimited } => "Özetleme hizmeti şu anda meşgul. Lütfen daha sonra yeniden deneyin.",
         SummarizationFailedException => "Özetleme hizmeti şu anda kullanılamıyor.",
@@ -92,6 +93,7 @@ static async Task WriteError(HttpContext context)
     };
     context.Response.StatusCode = status; var problem = new ProblemDetails { Status = status, Title = title, Detail = detail };
     if (error is RequestValidationException validation) problem.Extensions["errors"] = validation.Errors;
+    if (error is InsufficientSummaryContentException) problem.Extensions["code"] = "insufficient_content";
     if (error is UsernameConflictException) problem.Extensions["errors"] = new Dictionary<string, string[]> { ["username"] = ["Bu kullanıcı adı kullanılıyor."] };
     await context.Response.WriteAsJsonAsync(problem);
 }

@@ -25,7 +25,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 public sealed class FakeLlmSummarizer : ILlmSummarizer
 {
     public Task<LlmSummary> SummarizeAsync(PromptEnvelope prompt, CancellationToken ct)
-    { if (prompt.UserContent.Contains("provider-fail", StringComparison.Ordinal)) throw new LlmProviderException(LlmFailureKind.Unavailable); return Task.FromResult(new LlmSummary("Test özeti", "FakeGroq", "fake-model")); }
+    { if (prompt.UserContent.Contains("provider fail", StringComparison.Ordinal)) throw new LlmProviderException(LlmFailureKind.Unavailable); if (prompt.UserContent.Contains("provider insufficient", StringComparison.Ordinal)) return Task.FromResult(new LlmSummary(null, SummaryContentQuality.Insufficient, "FakeGroq", "fake-model")); return Task.FromResult(new LlmSummary("Test özeti", SummaryContentQuality.Sufficient, "FakeGroq", "fake-model")); }
 }
 
 public sealed class AuthApiTests(ApiFactory factory) : IClassFixture<ApiFactory>

@@ -62,7 +62,7 @@
 
 ### PDF'deki opsiyonel/bonus özellikler
 
-- Kullanıcının yalnız kendi en yeni üç başarılı özetini görmesi (**opsiyonel; ürün kararıyla Phase 3'e alındı**).
+- Kullanıcının yalnız kendi en yeni yedi uygun başarılı özetini görmesi (**opsiyonel; ürün kararıyla Phase 3'e alındı ve ürün kararıyla yedi kayda genişletildi**).
 - Mimari, AI entegrasyonu ve sınırlılıkları içeren kısa teknik rapor (**opsiyonel**).
 - Kullanıcı başına oran sınırlama (**bonus; güvenlik nedeniyle erken uygulanması önerilir**).
 - Uzun girdide yalnız ilk X karakteri loglama (**bonus; mahremiyet nedeniyle erken uygulanması önerilir**).
@@ -110,5 +110,5 @@ MVP aşağıdaki sınırlar sağlandığında ürün açısından kabul edilebil
 - **[Phase 3'te kısmen çözüldü]** Tam girdi ve başarılı tam özet 30 gün saklanır; Admin önizleme biçimi, erişimi ve zamanlanmış silme görevi sonraki fazda netleştirilecektir.
 - Metin için karakter/token sınırı ve desteklenen kaynak diller neler olacak?
 - Şablonların MVP'deki kesin alanları ve “uygun olduğunda” gösterilecek bölümlerin kuralları neler olacak?
-- **[Phase 3'te çözüldü]** Son üç başarılı özet MVP kapsamına alındı ve yalnız kayıt sahibi tarafından görülebilir.
+- **[Phase 3'te çözüldü]** En yeni yedi uygun başarılı özet MVP kapsamındadır ve yalnız kayıt sahibi tarafından görülebilir.
 - **[Phase 3'te kısmen çözüldü]** İlk sağlayıcı Groq, değiştirilebilir model `openai/gpt-oss-120b`, timeout 30 saniye ve çıktı sınırı 500 tokendır. Üretim maliyeti, veri işleme bölgesi ve kota doğrulaması açıktır.

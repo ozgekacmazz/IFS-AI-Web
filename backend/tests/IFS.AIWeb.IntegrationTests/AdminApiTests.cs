@@ -135,7 +135,7 @@ public sealed class AdminApiTests(ApiFactory factory) : IClassFixture<ApiFactory
         var admin = await SessionAsync("logadmin", UserRole.Admin);
         var source = "PRIVATE-SOURCE-" + string.Concat(Enumerable.Repeat("🙂e\u0301 line\n", 40)) + "END-SOURCE";
         await admin.Client.PostAsJsonAsync("/api/summaries", new { text = source, language = "Turkish" });
-        await admin.Client.PostAsJsonAsync("/api/summaries", new { text = "provider-fail", language = "English" });
+        await admin.Client.PostAsJsonAsync("/api/summaries", new { text = "provider fail", language = "English" });
         const string expiredSource = "EXPIRED-COMPLETE-SOURCE"; const string expiredSummary = "EXPIRED-COMPLETE-SUMMARY";
         using (var scope = factory.Services.CreateScope())
         {

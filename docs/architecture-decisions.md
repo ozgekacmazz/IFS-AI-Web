@@ -73,7 +73,7 @@ PDF backend, frontend, veritabanı ve LLM sağlayıcısını yazılımcıya bır
 - **Bağlam ve gerekçe:** **[PDF]** Prompt tabanlı akış ve basit bir şablon önerir. Ürün, dil/uzunluk/biçim/hedef kitle/şablon seçenekleri ve bilgi uydurmama kuralı getirir.
 - **Değerlendirilen alternatifler:** Kullanıcı metnini string interpolation ile doğrudan talimata eklemek; promptları admin panelinden düzenlemek.
 - **Sonuçlar ve ödünleşimler:** Tekrarlanabilirlik ve denetlenebilirlik artar; prompt injection tamamen ortadan kalkmaz. MVP'de promptlar kod/yapılandırma içinde sürümlü ve gözden geçirilmiş olur; prompt yönetim sistemi kurulmaz.
-- **Mevcut durum:** **[Phase 3'te kısmen çözüldü]** İlk kontrollü prompt `summary-v1` olarak uygulandı; kalite değerlendirme veri seti açık karardır.
+- **Mevcut durum:** **[İlk stabilizasyon checkpoint'inde geliştirildi]** Gerçek sağlayıcı testleri sonrasında audit edilebilir tam talimatı ayırt etmek için `summary-v3` kullanılır. Sıfır sıcaklıklı tek istek, yalnız tanımlanabilir bir önerme içeren kaynağı `sufficient` sayar; selamlaşma, bağlantısız/rastgele içerik ve belirsizlik `insufficient` sonucuyla kapalı kalır. Backend harf içeren en az iki Unicode kelime dahil açıkça yapısal olarak özetlenemeyen girdileri deterministik biçimde reddeder; çok kelimeli rastgele dizilerin semantik anlamını güvenilir biçimde saptadığını iddia etmez. Sağlayıcının yetersiz sonucu kaynak metni saklamayan mevcut başarısız audit modeliyle izlenir ve 422 döner. Önceki `summary-v1` ve varsa `summary-v2` kayıtları tarihsel audit verisi olarak korunur; yapılandırılmış çıktı ve few-shot rehberlik sınıflandırma hatalarını azaltır ancak semantik doğruluğu garanti etmez.
 
 ### ADR-009 - Yapılandırılmış AI yanıtı ve şema doğrulama
 
@@ -81,7 +81,7 @@ PDF backend, frontend, veritabanı ve LLM sağlayıcısını yazılımcıya bır
 - **Bağlam ve gerekçe:** Kaynak bağlantıları, kurumsal bölümler ve “Belirtilmemiş” davranışı serbest metinden güvenilir ayrıştırılamaz.
 - **Değerlendirilen alternatifler:** Tamamen serbest metin; regex/Markdown ayrıştırma.
 - **Sonuçlar ve ödünleşimler:** UI sözleşmesi kararlı olur. Sağlayıcı şema yetenekleri değişebilir; geçersiz yanıt için sınırlı yeniden deneme veya güvenli hata gerekir. Referans kimliklerinin varlığı deterministik doğrulanabilir, anlamsal doğruluk yalnız değerlendirme testleriyle ölçülebilir.
-- **Mevcut durum:** Kabul edildi; kesin şema şablon alanları netleşince belirlenecek.
+- **Mevcut durum:** **[İlk stabilizasyon checkpoint'inde kısmen uygulandı]** Özetleme sağlayıcısı, ek alanları reddeden ve `quality` ile `summary` alanlarını zorunlu tutan JSON schema çıktısı kullanır. Eksik veya geçersiz kalite sonucu güvenli sağlayıcı hatasına dönüşür; ikinci AI isteği yapılmaz.
 
 ### ADR-010 - Rate limiting
 
