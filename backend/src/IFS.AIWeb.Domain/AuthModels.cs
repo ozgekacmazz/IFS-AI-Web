@@ -28,7 +28,10 @@ public sealed class User
         string lastName, string passwordHash, UserRole role, DateTimeOffset now) =>
         new(id, username, normalizedUsername, firstName, lastName, passwordHash, role, now);
 
+    public void Activate(DateTimeOffset now) { IsActive = true; UpdatedAtUtc = now; }
     public void Deactivate(DateTimeOffset now) { IsActive = false; UpdatedAtUtc = now; }
+    public void ChangePasswordHash(string passwordHash, DateTimeOffset now)
+    { PasswordHash = passwordHash; UpdatedAtUtc = now; }
 }
 
 public sealed class RefreshToken

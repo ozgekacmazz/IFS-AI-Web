@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type RefObject } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/Auth'
 import { deriveSummaryTitle, type SummaryLanguage } from '../summaryTitles'
 
@@ -59,6 +59,7 @@ export function AppPage() {
       <button className="new-summary-button" aria-label="Yeni özet" title="Yeni özet" onClick={newSummary}><PlusIcon /><span>Yeni özet</span></button>
       <nav className="workspace-nav" aria-label="Özetler">
         <button className={view === 'library' ? 'nav-action active' : 'nav-action'} aria-label="Kitaplık" title="Kitaplık" onClick={() => { setView('library'); setSelected(null); closeMobileSidebar() }}><LibraryIcon /><span>Kitaplık</span></button>
+        {user?.role === 'Admin' && <Link className="nav-action admin-nav-link" to="/admin"><AdminIcon /><span>Admin paneli</span></Link>}
         <SidebarSection title="Sabitlenen özetler" items={pinned} empty="Henüz sabitlenen özet yok." onOpen={openSummary} />
         <SidebarSection title="Son özetler" items={recent} empty={historyState === 'loading' ? 'Yükleniyor…' : 'Henüz özet yok.'} onOpen={openSummary} />
       </nav>
@@ -88,5 +89,6 @@ function PlusIcon() { return <svg aria-hidden="true" viewBox="0 0 24 24"><path d
 function LibraryIcon() { return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5zM4 5.5v16M8 7h8" /></svg> }
 function PinIcon() { return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m14 4 6 6-3 1-4 4-1 5-2-2-4 4-1-1 4-4-2-2 5-1 4-4z" /></svg> }
 function LogoutIcon() { return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M10 5H5v14h5M14 8l4 4-4 4M8 12h10" /></svg> }
+function AdminIcon() { return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3 4 6v5c0 5 3.4 8.5 8 10 4.6-1.5 8-5 8-10V6zM9 12l2 2 4-4" /></svg> }
 
 export function AdminCheckPage() { return <section className="page-card"><h1>Yönetici yetkilendirmesi</h1><p>Yönetim deneyimi sonraki geliştirme aşamasında tamamlanacaktır.</p></section> }

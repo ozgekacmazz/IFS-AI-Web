@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using IFS.AIWeb.Application;
+using IFS.AIWeb.Api;
 using IFS.AIWeb.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -59,6 +60,7 @@ summaryApi.MapGet("/recent", async (ClaimsPrincipal principal, SummarizationServ
     Results.Ok(await service.RecentAsync(Guid.Parse(principal.FindFirstValue(JwtRegisteredClaimNames.Sub)!), ct)));
 summaryApi.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, SummarizationService service, CancellationToken ct) =>
     Results.Ok(await service.DetailAsync(Guid.Parse(principal.FindFirstValue(JwtRegisteredClaimNames.Sub)!), id, ct)));
+app.MapAdminEndpoints();
 if (!app.Environment.IsEnvironment("Testing")) await FirstAdminSeeder.SeedAsync(app.Services, app.Configuration);
 app.Run();
 
@@ -67,13 +69,28 @@ static CookieOptions CookieOptions(HttpContext context, DateTimeOffset expires) 
 static void ValidateOrigin(HttpContext context, string[] allowed) { var origin = context.Request.Headers.Origin.ToString(); if (string.IsNullOrWhiteSpace(origin) || !allowed.Contains(origin, StringComparer.Ordinal)) throw new BadHttpRequestException("İstek kaynağına izin verilmiyor.", 403); }
 static async Task WriteError(HttpContext context)
 {
-    var error = context.Features.Get<IExceptionHandlerFeature>()!.Error; var (status, title) = error switch { RequestValidationException => (400, "Doğrulama hatası"), AuthenticationFailedException => (401, "Kimlik doğrulama başarısız"), UsernameConflictException => (409, "Kullanıcı adı kullanılıyor"), SummaryNotFoundException => (404, "Özet bulunamadı"), SummarizationFailedException { Kind: LlmFailureKind.Timeout } => (504, "Özetleme zaman aşımına uğradı"), SummarizationFailedException { Kind: LlmFailureKind.RateLimited } => (503, "Özetleme hizmeti meşgul"), SummarizationFailedException => (502, "Özetleme hizmeti kullanılamıyor"), BadHttpRequestException bad => (bad.StatusCode, "İstek reddedildi"), _ => (500, "Beklenmeyen hata") };
+    var error = context.Features.Get<IExceptionHandlerFeature>()!.Error; var (status, title) = error switch { RequestValidationException => (400, "Doğrulama hatası"), AuthenticationFailedException => (401, "Kimlik doğrulama başarısız"), AdminUserNotFoundException => (404, "Kullanıcı bulunamadı"), UsernameConflictException => (409, "Kullanıcı adı kullanılıyor"), AdminSelfDeactivationException => (409, "İşlem uygulanamadı"), AdminLastActiveException => (409, "İşlem uygulanamadı"), SummaryNotFoundException => (404, "Özet bulunamadı"), SummarizationFailedException { Kind: LlmFailureKind.Timeout } => (504, "Özetleme zaman aşımına uğradı"), SummarizationFailedException { Kind: LlmFailureKind.RateLimited } => (503, "Özetleme hizmeti meşgul"), SummarizationFailedException => (502, "Özetleme hizmeti kullanılamıyor"), BadHttpRequestException bad => (bad.StatusCode, "İstek reddedildi"), _ => (500, "Beklenmeyen hata") };
     if (status == 500)
     {
         var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("SafeExceptionHandler");
         logger.LogError("İşlenmeyen {ExceptionType}; {Method} {Path}; TraceId {TraceId}", error.GetType().FullName, context.Request.Method, context.Request.Path, context.TraceIdentifier);
     }
-    context.Response.StatusCode = status; var problem = new ProblemDetails { Status = status, Title = title, Detail = status == 401 ? "Kullanıcı adı veya şifre geçersiz ya da oturum kullanılamıyor." : status == 404 ? "İstenen özet kullanılamıyor." : status == 500 ? "Şu anda istek tamamlanamadı. Lütfen daha sonra tekrar deneyin." : error.Message };
+    var detail = error switch
+    {
+        RequestValidationException => "Lütfen işaretlenen alanları düzeltin.",
+        AuthenticationFailedException => "Kullanıcı adı veya şifre geçersiz ya da oturum kullanılamıyor.",
+        AdminUserNotFoundException => "İstenen kullanıcı bulunamadı.",
+        UsernameConflictException => "Bu kullanıcı adı kullanılıyor.",
+        AdminSelfDeactivationException => "Kendi hesabınızı pasife alamazsınız.",
+        AdminLastActiveException => "Son aktif yönetici hesabı pasife alınamaz.",
+        SummaryNotFoundException => "İstenen özet kullanılamıyor.",
+        SummarizationFailedException { Kind: LlmFailureKind.Timeout } => "Özetleme hizmeti zamanında yanıt vermedi.",
+        SummarizationFailedException { Kind: LlmFailureKind.RateLimited } => "Özetleme hizmeti şu anda meşgul. Lütfen daha sonra yeniden deneyin.",
+        SummarizationFailedException => "Özetleme hizmeti şu anda kullanılamıyor.",
+        BadHttpRequestException => "İstek güvenlik kuralları nedeniyle reddedildi.",
+        _ => "Şu anda istek tamamlanamadı. Lütfen daha sonra tekrar deneyin."
+    };
+    context.Response.StatusCode = status; var problem = new ProblemDetails { Status = status, Title = title, Detail = detail };
     if (error is RequestValidationException validation) problem.Extensions["errors"] = validation.Errors;
     if (error is UsernameConflictException) problem.Extensions["errors"] = new Dictionary<string, string[]> { ["username"] = ["Bu kullanıcı adı kullanılıyor."] };
     await context.Response.WriteAsJsonAsync(problem);

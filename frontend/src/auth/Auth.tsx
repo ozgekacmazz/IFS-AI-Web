@@ -4,7 +4,8 @@ import { apiBaseUrl } from '../config/api'
 
 export type User = { username: string; firstName: string; lastName: string; role: 'User' | 'Admin' }
 type SessionResponse = { accessToken: string; accessTokenExpiresAtUtc: string; user: User }
-type AuthValue = { user: User | null; ready: boolean; login: (username: string, password: string) => Promise<void>; logout: () => Promise<void>; request: (path: string, init?: RequestInit) => Promise<Response> }
+export type AuthenticatedRequest = (path: string, init?: RequestInit) => Promise<Response>
+type AuthValue = { user: User | null; ready: boolean; login: (username: string, password: string) => Promise<void>; logout: () => Promise<void>; request: AuthenticatedRequest }
 const AuthContext = createContext<AuthValue | null>(null)
 let accessToken: string | null = null
 let refreshPromise: Promise<boolean> | null = null

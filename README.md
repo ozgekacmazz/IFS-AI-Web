@@ -79,6 +79,10 @@ SPA varsayılan olarak `http://localhost:5173` adresindedir. Kullanıcı adı 3-
 
 API uçları: `POST /api/auth/register`, `login`, `refresh`, `logout`; `GET /api/auth/me`, `admin-check`.
 
+## Admin backend
+
+Admin backend ve frontend fazları tamamlanmıştır. `/api/admin` altındaki kullanıcı listeleme/oluşturma, aktiflik, şifre güncelleme, kompakt AI kayıtları, salt okunur prompt bilgisi ve yedi günlük UTC istatistik uçlarının tamamı mevcut `AdminOnly` politikasıyla korunur. Yönetim arayüzü `/admin`, `/admin/users` ve `/admin/logs` rotalarındadır; yalnızca Admin rolüyle görüntülenir. Sözleşmeler, oturum iptali, son aktif yönetici eşzamanlılık koruması ve kayıt mahremiyeti [docs/admin-backend.md](docs/admin-backend.md), arayüz davranışları ise [docs/admin-frontend.md](docs/admin-frontend.md) belgesinde açıklanır. Bu faz mevcut şemayla uygulanmış, migration eklenmemiştir.
+
 ## Özetleme modeli
 
 - `POST /api/summaries`, kimliği doğrulanmış kullanıcının en fazla 12.000 karakterlik metnini Türkçe veya İngilizce özetler. Arayüzdeki “Kaynak metin” alanı ödevdeki prompt/metin girdisidir; ikinci bir düzenlenebilir prompt alanı yoktur. Kullanıcı kimliği JWT claim'inden alınır.
@@ -88,7 +92,7 @@ API uçları: `POST /api/auth/register`, `login`, `refresh`, `logout`; `GET /api
 - Özetleme POST isteği kullanıcı kimliğine göre sabit bir dakikalık pencerede beş istekle sınırlıdır. Limitleyici bellek içidir ve her API örneği için ayrıdır.
 - Başarılı tam kaynak metni ve tam özet PostgreSQL'de tutulur; kullanıcı saklama süresi içinde kendi kaydının ikisini de ayrıntı görünümünde okuyabilir. Başarısız sağlayıcı denemelerinde kaynak metin veya özet yerine yalnız güvenli operasyonel üst veri ve hata kategorisi saklanır. Her kayıt `ExpiresAtUtc = CreatedAtUtc + 30 gün` değerini taşır.
 - Uygulama loglarına tam girdi, prompt, özet, token, API anahtarı veya ham sağlayıcı hata gövdesi yazılmaz.
-- Zamanlanmış 30 günlük silme görevi, Admin kayıt ekranı ve yedi günlük istatistik grafiği sonraki fazlara bırakılmıştır; arayüz otomatik silmenin henüz uygulanmadığını açıkça belirtir.
+- Zamanlanmış 30 günlük silme görevi sonraki faza bırakılmıştır; Admin kayıt ekranı süresi dolan içeriği dürüstçe belirtir ve tam metni istemez.
 
 ## Bilinen bağımlılık bildirimi
 
@@ -96,4 +100,4 @@ API uçları: `POST /api/auth/register`, `login`, `refresh`, `logout`; `GET /api
 
 ## Kapsam dışında
 
-Kurumsal şablonlar, kaynak bağlantılı özetler, admin kullanıcı yönetimi, şifre sıfırlama/değiştirme, profil düzenleme, Admin log ekranları, zamanlanmış saklama temizliği, Docker ile API/SPA, CI/CD ve gerçek IFS entegrasyonu uygulanmamıştır.
+Kurumsal şablonlar, kaynak bağlantılı özetler, profil düzenleme, zamanlanmış saklama temizliği, Docker ile API/SPA, CI/CD ve gerçek IFS entegrasyonu uygulanmamıştır.
