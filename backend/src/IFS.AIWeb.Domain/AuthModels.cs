@@ -59,6 +59,7 @@ public sealed class RefreshToken
 
 public enum SummaryLanguage { Turkish, English }
 public enum SummaryStatus { Succeeded, Failed }
+public enum SummaryFeedback { Useful, NotUseful }
 
 public sealed class SummaryRecord
 {
@@ -85,9 +86,16 @@ public sealed class SummaryRecord
     public DateTimeOffset CreatedAtUtc { get; private set; }
     public DateTimeOffset ExpiresAtUtc { get; private set; }
     public string? FailureCode { get; private set; }
+    public SummaryFeedback? Feedback { get; private set; }
+    public DateTimeOffset? FeedbackUpdatedAtUtc { get; private set; }
     public User User { get; private set; } = null!;
     public static SummaryRecord Create(Guid userId, string input, string? summary, SummaryLanguage language,
         SummaryStatus status, string provider, string model, string promptVersion, long durationMs,
         DateTimeOffset now, string? failureCode = null) => new(Guid.NewGuid(), userId, input, summary, language,
         status, provider, model, promptVersion, input.Length, summary?.Length ?? 0, durationMs, now, failureCode);
+    public void SetFeedback(SummaryFeedback feedback, DateTimeOffset now)
+    {
+        if (Feedback == feedback) return;
+        Feedback = feedback; FeedbackUpdatedAtUtc = now;
+    }
 }

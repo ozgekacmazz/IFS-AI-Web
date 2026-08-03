@@ -63,6 +63,8 @@ summaryApi.MapGet("/recent", async (ClaimsPrincipal principal, SummarizationServ
     Results.Ok(await service.RecentAsync(Guid.Parse(principal.FindFirstValue(JwtRegisteredClaimNames.Sub)!), ct)));
 summaryApi.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, SummarizationService service, CancellationToken ct) =>
     Results.Ok(await service.DetailAsync(Guid.Parse(principal.FindFirstValue(JwtRegisteredClaimNames.Sub)!), id, ct)));
+summaryApi.MapPut("/{id:guid}/feedback", async (Guid id, SummaryFeedbackRequest request, ClaimsPrincipal principal, SummarizationService service, CancellationToken ct) =>
+    Results.Ok(await service.SetFeedbackAsync(new(Guid.Parse(principal.FindFirstValue(JwtRegisteredClaimNames.Sub)!), id, request.Value), ct)));
 app.MapAdminEndpoints();
 if (!app.Environment.IsEnvironment("Testing")) await FirstAdminSeeder.SeedAsync(app.Services, app.Configuration);
 app.Run();
@@ -104,6 +106,7 @@ static async Task WriteError(HttpContext context)
 public sealed record RegisterRequest(string Username, string FirstName, string LastName, string Password, string PasswordConfirmation);
 public sealed record LoginRequest(string Username, string Password);
 public sealed record SummarizeRequest(string Text, string Language);
+public sealed record SummaryFeedbackRequest(string? Value);
 public sealed class ActiveUserRequirement : IAuthorizationRequirement;
 public sealed class ActiveUserHandler(IUserRepository users) : AuthorizationHandler<ActiveUserRequirement>
 {

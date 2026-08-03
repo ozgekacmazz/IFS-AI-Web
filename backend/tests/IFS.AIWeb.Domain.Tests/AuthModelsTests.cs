@@ -15,4 +15,12 @@ public sealed class AuthModelsTests
         user.Activate(created.AddMinutes(2)); Assert.True(user.IsActive); Assert.Equal(created.AddMinutes(2), user.UpdatedAtUtc);
         user.ChangePasswordHash("new-hash", created.AddMinutes(3)); Assert.Equal("new-hash", user.PasswordHash); Assert.Equal(created.AddMinutes(3), user.UpdatedAtUtc);
     }
+    [Fact] public void SummaryFeedback_DefaultsNullAndSameValueDoesNotMoveTimestamp()
+    {
+        var now = DateTimeOffset.UtcNow; var record = SummaryRecord.Create(Guid.NewGuid(), "source", "summary", SummaryLanguage.Turkish, SummaryStatus.Succeeded, "Test", "model", "prompt", 1, now);
+        Assert.Null(record.Feedback); Assert.Null(record.FeedbackUpdatedAtUtc);
+        record.SetFeedback(SummaryFeedback.Useful, now.AddMinutes(1)); Assert.Equal(SummaryFeedback.Useful, record.Feedback); Assert.Equal(now.AddMinutes(1), record.FeedbackUpdatedAtUtc);
+        record.SetFeedback(SummaryFeedback.Useful, now.AddMinutes(2)); Assert.Equal(now.AddMinutes(1), record.FeedbackUpdatedAtUtc);
+        record.SetFeedback(SummaryFeedback.NotUseful, now.AddMinutes(3)); Assert.Equal(SummaryFeedback.NotUseful, record.Feedback); Assert.Equal(now.AddMinutes(3), record.FeedbackUpdatedAtUtc);
+    }
 }

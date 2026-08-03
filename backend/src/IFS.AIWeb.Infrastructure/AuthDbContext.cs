@@ -34,6 +34,13 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options) : DbC
         summary.Property(x => x.PromptVersion).HasColumnName("prompt_version").HasMaxLength(32); summary.Property(x => x.InputCharacterCount).HasColumnName("input_character_count"); summary.Property(x => x.OutputCharacterCount).HasColumnName("output_character_count");
         summary.Property(x => x.DurationMilliseconds).HasColumnName("duration_milliseconds"); summary.Property(x => x.FailureCode).HasColumnName("failure_code").HasMaxLength(32);
         summary.Property(x => x.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamp with time zone"); summary.Property(x => x.ExpiresAtUtc).HasColumnName("expires_at_utc").HasColumnType("timestamp with time zone");
+        summary.Property(x => x.Feedback).HasColumnName("feedback").HasConversion<string>().HasMaxLength(16);
+        summary.Property(x => x.FeedbackUpdatedAtUtc).HasColumnName("feedback_updated_at_utc").HasColumnType("timestamp with time zone");
+        summary.ToTable(table =>
+        {
+            table.HasCheckConstraint("ck_summary_records_feedback_value", "feedback IS NULL OR feedback IN ('Useful', 'NotUseful')");
+            table.HasCheckConstraint("ck_summary_records_feedback_timestamp", "(feedback IS NULL AND feedback_updated_at_utc IS NULL) OR (feedback IS NOT NULL AND feedback_updated_at_utc IS NOT NULL)");
+        });
         summary.HasIndex(x => new { x.UserId, x.Status, x.CreatedAtUtc }).HasDatabaseName("ix_summary_records_user_status_created"); summary.HasIndex(x => x.ExpiresAtUtc).HasDatabaseName("ix_summary_records_expires_at"); summary.HasIndex(x => x.CreatedAtUtc).HasDatabaseName("ix_summary_records_created_at");
         summary.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
     }

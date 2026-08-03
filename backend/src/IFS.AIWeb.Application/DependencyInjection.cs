@@ -9,6 +9,7 @@ public static class DependencyInjection
         services.AddScoped<AuthService>();
         services.AddScoped<SummarizationService>();
         services.AddScoped<AdminService>();
+        services.AddSingleton<ISummaryLengthPolicy, SummaryLengthPolicy>();
         services.AddSingleton<ISummarizationPromptBuilder, SummarizationPromptBuilder>();
         return services;
     }

@@ -30,6 +30,12 @@ internal sealed class SummaryRepository(AuthDbContext db) : ISummaryRepository
     public Task<SummaryRecord?> GetSuccessfulDetailAsync(Guid id, Guid userId, DateTimeOffset now, CancellationToken ct) =>
         db.SummaryRecords.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && x.UserId == userId &&
             x.Status == SummaryStatus.Succeeded && x.ExpiresAtUtc > now, ct);
+    public Task<SummaryRecord?> GetSuccessfulForFeedbackAsync(Guid id, Guid userId, DateTimeOffset now, CancellationToken ct) =>
+        db.SummaryRecords.FromSqlInterpolated($"""
+            SELECT * FROM summary_records
+            WHERE id = {id} AND user_id = {userId} AND status = 'Succeeded' AND expires_at_utc > {now}
+            FOR UPDATE
+            """).SingleOrDefaultAsync(ct);
 }
 
 public sealed class GroqSummarizer(HttpClient client, GroqOptions options, ILogger<GroqSummarizer> logger) : ILlmSummarizer

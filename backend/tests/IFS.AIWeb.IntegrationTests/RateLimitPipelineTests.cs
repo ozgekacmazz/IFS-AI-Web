@@ -26,7 +26,10 @@ public sealed class RateLimitPipelineTests
         for (var index = 0; index < 5; index++)
         {
             Assert.Equal(HttpStatusCode.OK, (await first.GetAsync("/api/summaries/recent")).StatusCode);
-            Assert.Equal(HttpStatusCode.OK, (await first.PostAsJsonAsync("/api/summaries", new { text = $"valid source {index}", language = "English" })).StatusCode);
+            var created = await first.PostAsJsonAsync("/api/summaries", new { text = $"valid source {index}", language = "English" });
+            Assert.Equal(HttpStatusCode.OK, created.StatusCode);
+            var createdBody = await created.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+            Assert.Equal(HttpStatusCode.OK, (await first.PutAsJsonAsync($"/api/summaries/{createdBody.GetProperty("id").GetGuid()}/feedback", new { value = "Useful" })).StatusCode);
         }
         var rejected = await first.PostAsJsonAsync("/api/summaries", new { text = "sixth source", language = "English" });
         Assert.Equal(HttpStatusCode.TooManyRequests, rejected.StatusCode);
@@ -72,7 +75,7 @@ public sealed class RateLimitPipelineTests
     }
     private sealed class FakeLlm : ILlmSummarizer { public Task<LlmSummary> SummarizeAsync(PromptEnvelope prompt, CancellationToken ct) => Task.FromResult(new LlmSummary("safe", SummaryContentQuality.Sufficient, "Fake", "fake")); }
     private sealed class MemorySummaries : ISummaryRepository
-    { public void Add(SummaryRecord record) { } public Task<IReadOnlyList<SummaryRecord>> GetRecentSuccessfulAsync(Guid userId, int limit, DateTimeOffset now, CancellationToken ct) => Task.FromResult<IReadOnlyList<SummaryRecord>>([]); public Task<SummaryRecord?> GetSuccessfulDetailAsync(Guid id, Guid userId, DateTimeOffset now, CancellationToken ct) => Task.FromResult<SummaryRecord?>(null); }
+    { private readonly List<SummaryRecord> items = []; public void Add(SummaryRecord record) { lock (items) items.Add(record); } public Task<IReadOnlyList<SummaryRecord>> GetRecentSuccessfulAsync(Guid userId, int limit, DateTimeOffset now, CancellationToken ct) { lock (items) return Task.FromResult<IReadOnlyList<SummaryRecord>>(items.Where(x => x.UserId == userId && x.Status == SummaryStatus.Succeeded && x.ExpiresAtUtc > now).Take(limit).ToArray()); } public Task<SummaryRecord?> GetSuccessfulDetailAsync(Guid id, Guid userId, DateTimeOffset now, CancellationToken ct) { lock (items) return Task.FromResult(items.SingleOrDefault(x => x.Id == id && x.UserId == userId && x.Status == SummaryStatus.Succeeded && x.ExpiresAtUtc > now)); } public Task<SummaryRecord?> GetSuccessfulForFeedbackAsync(Guid id, Guid userId, DateTimeOffset now, CancellationToken ct) => GetSuccessfulDetailAsync(id, userId, now, ct); }
     private sealed class FakeUnit : IUnitOfWork { public Task SaveChangesAsync(CancellationToken ct) => Task.CompletedTask; public Task<T> InTransactionAsync<T>(Func<CancellationToken, Task<T>> action, CancellationToken ct) => action(ct); }
     private sealed class RateLogSink { public List<string> Messages { get; } = []; }
     private sealed class CaptureProvider(RateLogSink sink) : ILoggerProvider
