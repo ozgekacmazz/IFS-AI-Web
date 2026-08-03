@@ -95,6 +95,37 @@ public sealed class SummarizationTests
     [Fact] public async Task Detail_HidesUnavailableRecordsBehindNotFound()
     { var f = new Fixture(); var user = Guid.NewGuid(); await f.Service.SummarizeAsync(new(user, "complete source", "English"), default); var record = Assert.Single(f.Repository.Items); await Assert.ThrowsAsync<SummaryNotFoundException>(() => f.Service.DetailAsync(Guid.NewGuid(), record.Id, default)); await Assert.ThrowsAsync<SummaryNotFoundException>(() => f.Service.DetailAsync(user, Guid.NewGuid(), default)); }
 
+    [Fact]
+    public async Task DownloadPdf_ReturnsPdfBytesAndFileName_ForOwnedSummary()
+    {
+        var f = new Fixture();
+        var user = Guid.NewGuid();
+        var summaryResponse = await f.Service.SummarizeAsync(new(user, "Test kaynak metin içeriği.", "Turkish"), default);
+
+        var pdfResult = await f.Service.DownloadPdfAsync(user, summaryResponse.Id, default);
+
+        Assert.NotNull(pdfResult);
+        Assert.NotNull(pdfResult.Content);
+        Assert.True(pdfResult.Content.Length > 0);
+        Assert.Equal($"IFS-Summary-{summaryResponse.Id}.pdf", pdfResult.FileName);
+
+        var magic = System.Text.Encoding.ASCII.GetString(pdfResult.Content[..4]);
+        Assert.Equal("%PDF", magic);
+    }
+
+    [Fact]
+    public async Task DownloadPdf_ThrowsSummaryNotFound_ForUnownedSummaryOrAdmin()
+    {
+        var f = new Fixture();
+        var ownerUser = Guid.NewGuid();
+        var otherUserOrAdmin = Guid.NewGuid();
+
+        var summaryResponse = await f.Service.SummarizeAsync(new(ownerUser, "Test metin içeriği", "Turkish"), default);
+
+        await Assert.ThrowsAsync<SummaryNotFoundException>(() =>
+            f.Service.DownloadPdfAsync(otherUserOrAdmin, summaryResponse.Id, default));
+    }
+
     [Theory] [InlineData(null)] [InlineData("")] [InlineData("Helpful")] [InlineData("0")]
     public async Task Feedback_InvalidValueIsRejectedBeforeRepositoryOrProvider(string? value)
     { var f = new Fixture(); await Assert.ThrowsAsync<RequestValidationException>(() => f.Service.SetFeedbackAsync(new(Guid.NewGuid(), Guid.NewGuid(), value), default)); Assert.Equal(0, f.Repository.FeedbackQueries); Assert.Equal(0, f.Llm.Calls); }
@@ -122,7 +153,7 @@ public sealed class SummarizationTests
 
     private sealed class Fixture
     { public FakeLlm Llm { get; } = new(); public FakeRepository Repository { get; } = new(); public FakeClock Clock { get; } = new(); public SummarizationService Service { get; }
-      public Fixture() => Service = new(new SummarizationPromptBuilder(), new SummaryLengthPolicy(), Llm, Repository, new FakeUnit(), Clock); }
+      public Fixture() => Service = new(new SummarizationPromptBuilder(), new SummaryLengthPolicy(), Llm, Repository, new FakeUnit(), Clock, new PdfReportGenerator()); }
     private sealed class FakeLlm : ILlmSummarizer { public int Calls; public LlmFailureKind? Failure; public bool Cancel; public SummaryContentQuality Quality = SummaryContentQuality.Sufficient; public string? Text = "summary"; public Task<LlmSummary> SummarizeAsync(PromptEnvelope prompt, CancellationToken ct) { Calls++; if (Cancel) throw new OperationCanceledException(ct); if (Failure is { } kind) throw new LlmProviderException(kind); return Task.FromResult(new LlmSummary(Text, Quality, "Fake", "fake-model")); } }
     private sealed class FakeRepository : ISummaryRepository { public List<SummaryRecord> Items { get; } = []; public int FeedbackQueries { get; private set; } public void Add(SummaryRecord record) => Items.Add(record); public Task<IReadOnlyList<SummaryRecord>> GetRecentSuccessfulAsync(Guid userId, int limit, DateTimeOffset now, CancellationToken ct) => Task.FromResult<IReadOnlyList<SummaryRecord>>(Items.Where(x => x.UserId == userId && x.Status == SummaryStatus.Succeeded && x.ExpiresAtUtc > now).OrderByDescending(x => x.CreatedAtUtc).ThenByDescending(x => x.Id).Take(limit).ToArray()); public Task<SummaryRecord?> GetSuccessfulDetailAsync(Guid id, Guid userId, DateTimeOffset now, CancellationToken ct) => Task.FromResult(Items.SingleOrDefault(x => x.Id == id && x.UserId == userId && x.Status == SummaryStatus.Succeeded && x.ExpiresAtUtc > now)); public Task<SummaryRecord?> GetSuccessfulForFeedbackAsync(Guid id, Guid userId, DateTimeOffset now, CancellationToken ct) { FeedbackQueries++; return Task.FromResult(Items.SingleOrDefault(x => x.Id == id && x.UserId == userId && x.Status == SummaryStatus.Succeeded && x.ExpiresAtUtc > now)); } }
     private sealed class FakeUnit : IUnitOfWork { public Task SaveChangesAsync(CancellationToken ct) => Task.CompletedTask; public Task<T> InTransactionAsync<T>(Func<CancellationToken, Task<T>> action, CancellationToken ct) => action(ct); }

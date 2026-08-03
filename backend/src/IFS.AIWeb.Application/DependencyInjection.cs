@@ -11,6 +11,7 @@ public static class DependencyInjection
         services.AddScoped<AdminService>();
         services.AddSingleton<ISummaryLengthPolicy, SummaryLengthPolicy>();
         services.AddSingleton<ISummarizationPromptBuilder, SummarizationPromptBuilder>();
+        services.AddSingleton<IPdfReportGenerator, PdfReportGenerator>();
         return services;
     }
 }

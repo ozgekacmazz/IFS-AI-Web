@@ -11,6 +11,7 @@ public sealed record SummaryResponse(Guid Id, string Summary, string Language, D
 public sealed record RecentSummaryResponse(Guid Id, string Summary, string Language, DateTimeOffset CreatedAtUtc, DateTimeOffset ExpiresAtUtc, string? Feedback);
 public sealed record SummaryDetailResponse(Guid Id, string InputText, string Summary, string Language,
     DateTimeOffset CreatedAtUtc, DateTimeOffset ExpiresAtUtc, string PromptVersion, string? Feedback, DateTimeOffset? FeedbackUpdatedAtUtc);
+public sealed record PdfDownloadResponse(byte[] Content, string FileName);
 public sealed record PromptEnvelope(string Version, string SystemInstruction, string UserContent, SummaryLanguage Language);
 public enum SummaryContentQuality { Sufficient, Insufficient }
 public sealed record LlmSummary(string? Text, SummaryContentQuality Quality, string Provider, string Model);
@@ -74,7 +75,7 @@ public sealed class SummarizationPromptBuilder : ISummarizationPromptBuilder
 }
 
 public sealed class SummarizationService(ISummarizationPromptBuilder prompts, ISummaryLengthPolicy lengths, ILlmSummarizer llm,
-    ISummaryRepository summaries, IUnitOfWork unit, IClock clock)
+    ISummaryRepository summaries, IUnitOfWork unit, IClock clock, IPdfReportGenerator pdfGenerator)
 {
     private const int RecentSummaryLimit = 7;
     public async Task<SummaryResponse> SummarizeAsync(SummarizeCommand command, CancellationToken ct)
@@ -116,6 +117,12 @@ public sealed class SummarizationService(ISummarizationPromptBuilder prompts, IS
         var record = await summaries.GetSuccessfulDetailAsync(id, userId, clock.UtcNow, ct) ?? throw new SummaryNotFoundException();
         return new(record.Id, record.InputText, record.SummaryText!, record.RequestedLanguage.ToString(),
             record.CreatedAtUtc, record.ExpiresAtUtc, record.PromptVersion, record.Feedback?.ToString(), record.FeedbackUpdatedAtUtc);
+    }
+    public async Task<PdfDownloadResponse> DownloadPdfAsync(Guid userId, Guid id, CancellationToken ct)
+    {
+        var detail = await DetailAsync(userId, id, ct);
+        var pdfBytes = pdfGenerator.Generate(detail);
+        return new PdfDownloadResponse(pdfBytes, $"IFS-Summary-{detail.Id}.pdf");
     }
     public Task<SummaryFeedbackResponse> SetFeedbackAsync(SetSummaryFeedbackCommand command, CancellationToken ct)
     {

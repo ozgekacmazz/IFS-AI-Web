@@ -86,6 +86,69 @@ public sealed class SummaryApiTests(ApiFactory factory) : IClassFixture<ApiFacto
         var responses = await Task.WhenAll(client.PutAsJsonAsync($"/api/summaries/{created.Id}/feedback", new { value = "Useful" }), client.PutAsJsonAsync($"/api/summaries/{created.Id}/feedback", new { value = "NotUseful" })); Assert.All(responses, response => Assert.Equal(HttpStatusCode.OK, response.StatusCode));
         using var scope = factory.Services.CreateScope(); var record = await scope.ServiceProvider.GetRequiredService<AuthDbContext>().SummaryRecords.AsNoTracking().SingleAsync(x => x.Id == created.Id); Assert.True(record.Feedback is SummaryFeedback.Useful or SummaryFeedback.NotUseful); Assert.NotNull(record.FeedbackUpdatedAtUtc);
     }
+
+    [Fact]
+    public async Task PdfDownload_OwnerCanDownloadPdfWithCorrectHeadersAndContent()
+    {
+        var (client, _) = await AuthenticatedClient("pdfowner");
+        var created = (await (await client.PostAsJsonAsync("/api/summaries", new { text = "Özetlenecek Türkçe kaynak metin içeriği", language = "Turkish" })).Content.ReadFromJsonAsync<SummaryDto>())!;
+
+        var response = await client.GetAsync($"/api/summaries/{created.Id}/pdf");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        Assert.Equal("application/pdf", response.Content.Headers.ContentType?.MediaType);
+        var disposition = response.Content.Headers.ContentDisposition;
+        Assert.NotNull(disposition);
+        Assert.Equal("attachment", disposition.DispositionType);
+        Assert.Equal($"IFS-Summary-{created.Id}.pdf", disposition.FileName);
+
+        var bytes = await response.Content.ReadAsByteArrayAsync();
+        Assert.NotEmpty(bytes);
+        var magic = System.Text.Encoding.ASCII.GetString(bytes[..4]);
+        Assert.Equal("%PDF", magic);
+    }
+
+    [Fact]
+    public async Task PdfDownload_CrossUserOrAdminGetsNotFound()
+    {
+        var (ownerClient, _) = await AuthenticatedClient("pdfuser");
+        var (otherClient, _) = await AuthenticatedClient("pdfother");
+        var (adminClient, adminId) = await AuthenticatedClient("pdfadmin");
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<AuthDbContext>()
+                .Database.ExecuteSqlInterpolatedAsync($"UPDATE users SET role = 'Admin' WHERE id = {adminId}");
+        }
+
+        var created = (await (await ownerClient.PostAsJsonAsync("/api/summaries", new { text = "Gizli kaynak metin", language = "Turkish" })).Content.ReadFromJsonAsync<SummaryDto>())!;
+
+        var otherResponse = await otherClient.GetAsync($"/api/summaries/{created.Id}/pdf");
+        Assert.Equal(HttpStatusCode.NotFound, otherResponse.StatusCode);
+
+        var adminResponse = await adminClient.GetAsync($"/api/summaries/{created.Id}/pdf");
+        Assert.Equal(HttpStatusCode.NotFound, adminResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task PdfDownload_DoesNotConsumeSummaryRateLimit()
+    {
+        var (client, _) = await AuthenticatedClient("pdfratelimit");
+        var created = (await (await client.PostAsJsonAsync("/api/summaries", new { text = "Orijinal metin", language = "Turkish" })).Content.ReadFromJsonAsync<SummaryDto>())!;
+
+        for (var i = 0; i < 4; i++)
+        {
+            var res = await client.PostAsJsonAsync("/api/summaries", new { text = $"İstek numarası {i}", language = "Turkish" });
+            Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+        }
+
+        var sixthCreation = await client.PostAsJsonAsync("/api/summaries", new { text = "Limit aşımı isteği", language = "Turkish" });
+        Assert.Equal(HttpStatusCode.TooManyRequests, sixthCreation.StatusCode);
+
+        var pdfResponse = await client.GetAsync($"/api/summaries/{created.Id}/pdf");
+        Assert.Equal(HttpStatusCode.OK, pdfResponse.StatusCode);
+        Assert.Equal("application/pdf", pdfResponse.Content.Headers.ContentType?.MediaType);
+    }
     private static string ToLength(string seed, int length) { var builder = new System.Text.StringBuilder(length + seed.Length); while (builder.Length < length) builder.Append(seed); if (builder.Length > length) builder.Length = length; return builder.ToString(); }
     private async Task<(HttpClient Client, Guid UserId)> AuthenticatedClient(string prefix)
     { var client = factory.Client(false); var username = prefix + Guid.NewGuid().ToString("N")[..8]; const string password = "Secure123!"; await client.PostAsJsonAsync("/api/auth/register", new { username, firstName = "Test", lastName = "User", password, passwordConfirmation = password }); var login = await client.PostAsJsonAsync("/api/auth/login", new { username, password }); var session = (await login.Content.ReadFromJsonAsync<Session>())!; client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken); using var scope = factory.Services.CreateScope(); var id = await scope.ServiceProvider.GetRequiredService<AuthDbContext>().Users.Where(x => x.NormalizedUsername == username.ToUpperInvariant()).Select(x => x.Id).SingleAsync(); return (client, id); }

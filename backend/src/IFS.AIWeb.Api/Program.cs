@@ -63,6 +63,11 @@ summaryApi.MapGet("/recent", async (ClaimsPrincipal principal, SummarizationServ
     Results.Ok(await service.RecentAsync(Guid.Parse(principal.FindFirstValue(JwtRegisteredClaimNames.Sub)!), ct)));
 summaryApi.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, SummarizationService service, CancellationToken ct) =>
     Results.Ok(await service.DetailAsync(Guid.Parse(principal.FindFirstValue(JwtRegisteredClaimNames.Sub)!), id, ct)));
+summaryApi.MapGet("/{id:guid}/pdf", async (Guid id, ClaimsPrincipal principal, SummarizationService service, CancellationToken ct) =>
+{
+    var pdf = await service.DownloadPdfAsync(Guid.Parse(principal.FindFirstValue(JwtRegisteredClaimNames.Sub)!), id, ct);
+    return Results.File(pdf.Content, "application/pdf", pdf.FileName);
+});
 summaryApi.MapPut("/{id:guid}/feedback", async (Guid id, SummaryFeedbackRequest request, ClaimsPrincipal principal, SummarizationService service, CancellationToken ct) =>
     Results.Ok(await service.SetFeedbackAsync(new(Guid.Parse(principal.FindFirstValue(JwtRegisteredClaimNames.Sub)!), id, request.Value), ct)));
 app.MapAdminEndpoints();
