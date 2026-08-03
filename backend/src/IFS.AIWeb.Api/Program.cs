@@ -11,6 +11,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using System.Threading.RateLimiting;
+using System.Globalization;
+using System.Security.Cryptography;
 
 const string CorsPolicy = "SpaCors";
 var builder = WebApplication.CreateBuilder(args);
@@ -33,14 +35,15 @@ builder.Services.AddAuthorization(o =>
 builder.Services.AddScoped<IAuthorizationHandler, ActiveUserHandler>();
 builder.Services.AddRateLimiter(options =>
 {
-    options.AddPolicy("SummaryPerUser", context => RateLimitPartition.GetFixedWindowLimiter(
-        context.User.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? "anonymous",
-        _ => new FixedWindowRateLimiterOptions { PermitLimit = 5, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true }));
+    options.AddPolicy("SummaryPerUser", context => RateLimitPartition.GetSlidingWindowLimiter(
+        context.User.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? "missing-authenticated-sub",
+        _ => SummaryRateLimitPolicy.Options()));
     options.OnRejected = async (context, ct) =>
-    { context.HttpContext.Response.StatusCode = 429; context.HttpContext.Response.Headers.RetryAfter = "60"; await context.HttpContext.Response.WriteAsJsonAsync(new ProblemDetails { Status = 429, Title = "İstek sınırı aşıldı", Detail = "Bir dakika sonra yeniden deneyin." }, ct); };
+    { var http = context.HttpContext; var seconds = SummaryRateLimitPolicy.RetryAfterSeconds(context.Lease); http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("SummaryRateLimit").LogInformation("Summary rate limit; Endpoint {Endpoint}; Method {Method}; Partition {Partition}; PolicyExecuted {PolicyExecuted}; Decision {Decision}; RemainingPermits {RemainingPermits}; TraceId {TraceId}", http.Request.Path.Value, http.Request.Method, SafePartition(http.User), true, "Rejected", null, http.TraceIdentifier); http.Response.StatusCode = 429; http.Response.Headers.RetryAfter = seconds.ToString(CultureInfo.InvariantCulture); var problem = new ProblemDetails { Status = 429, Title = "İstek sınırı aşıldı", Detail = "Belirtilen süre sonunda yeniden deneyin." }; problem.Extensions["retryAfterSeconds"] = seconds; await http.Response.WriteAsJsonAsync(problem, ct); };
 });
 
 var app = builder.Build(); app.UseExceptionHandler(handler => handler.Run(WriteError)); app.UseCors(CorsPolicy); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter();
+app.Use(async (context, next) => { if (HttpMethods.IsPost(context.Request.Method) && context.Request.Path.Equals("/api/summaries", StringComparison.OrdinalIgnoreCase)) context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("SummaryRateLimit").LogInformation("Summary rate limit; Endpoint {Endpoint}; Method {Method}; Partition {Partition}; PolicyExecuted {PolicyExecuted}; Decision {Decision}; RemainingPermits {RemainingPermits}; TraceId {TraceId}", context.Request.Path.Value, context.Request.Method, SafePartition(context.User), true, "Admitted", null, context.TraceIdentifier); await next(); });
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy" })).AllowAnonymous();
 var auth = app.MapGroup("/api/auth");
 auth.MapPost("/register", async (RegisterRequest request, AuthService service, CancellationToken ct) => Results.Created("/api/auth/me", await service.RegisterAsync(new(request.Username, request.FirstName, request.LastName, request.Password, request.PasswordConfirmation), ct))).AllowAnonymous().WithMetadata(new RequestSizeLimitAttribute(16_384));
@@ -67,6 +70,7 @@ app.Run();
 static void SetRefreshCookie(HttpContext context, string token, DateTimeOffset expires) => context.Response.Cookies.Append("refreshToken", token, CookieOptions(context, expires));
 static CookieOptions CookieOptions(HttpContext context, DateTimeOffset expires) => new() { HttpOnly = true, Secure = !context.RequestServices.GetRequiredService<IWebHostEnvironment>().IsDevelopment(), SameSite = SameSiteMode.Strict, Path = "/api/auth", Expires = expires, MaxAge = expires > DateTimeOffset.UtcNow ? expires - DateTimeOffset.UtcNow : TimeSpan.Zero };
 static void ValidateOrigin(HttpContext context, string[] allowed) { var origin = context.Request.Headers.Origin.ToString(); if (string.IsNullOrWhiteSpace(origin) || !allowed.Contains(origin, StringComparer.Ordinal)) throw new BadHttpRequestException("İstek kaynağına izin verilmiyor.", 403); }
+static string SafePartition(ClaimsPrincipal principal) { var value = principal.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? "missing-authenticated-sub"; return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)))[..12]; }
 static async Task WriteError(HttpContext context)
 {
     var error = context.Features.Get<IExceptionHandlerFeature>()!.Error; var (status, title) = error switch { RequestValidationException => (400, "Doğrulama hatası"), AuthenticationFailedException => (401, "Kimlik doğrulama başarısız"), AdminUserNotFoundException => (404, "Kullanıcı bulunamadı"), UsernameConflictException => (409, "Kullanıcı adı kullanılıyor"), AdminSelfDeactivationException => (409, "İşlem uygulanamadı"), AdminLastActiveException => (409, "İşlem uygulanamadı"), SummaryNotFoundException => (404, "Özet bulunamadı"), InsufficientSummaryContentException => (422, "Yetersiz içerik"), SummarizationFailedException { Kind: LlmFailureKind.Timeout } => (504, "Özetleme zaman aşımına uğradı"), SummarizationFailedException { Kind: LlmFailureKind.RateLimited } => (503, "Özetleme hizmeti meşgul"), SummarizationFailedException => (502, "Özetleme hizmeti kullanılamıyor"), BadHttpRequestException bad => (bad.StatusCode, "İstek reddedildi"), _ => (500, "Beklenmeyen hata") };
@@ -107,3 +111,10 @@ public sealed class ActiveUserHandler(IUserRepository users) : AuthorizationHand
     { if (Guid.TryParse(context.User.FindFirstValue(JwtRegisteredClaimNames.Sub), out var id) && (await users.FindByIdAsync(id, CancellationToken.None))?.IsActive == true) context.Succeed(requirement); }
 }
 public partial class Program;
+public static class SummaryRateLimitPolicy
+{
+    public const int PermitLimit = 5; public const int SegmentsPerWindow = 60; public static readonly TimeSpan Window = TimeSpan.FromMinutes(1);
+    public static SlidingWindowRateLimiterOptions Options() => new() { PermitLimit = PermitLimit, Window = Window, SegmentsPerWindow = SegmentsPerWindow, QueueLimit = 0, AutoReplenishment = true };
+    public static int RetryAfterSeconds(RateLimitLease lease) => lease.TryGetMetadata(MetadataName.RetryAfter, out var remaining)
+        ? Math.Max(1, (int)Math.Ceiling(remaining.TotalSeconds)) : (int)Window.TotalSeconds;
+}

@@ -1,11 +1,14 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Diagnostics;
+using System.Text;
 using System.Text.Json.Serialization;
 using System.Text.Json;
 using IFS.AIWeb.Application;
 using IFS.AIWeb.Domain;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace IFS.AIWeb.Infrastructure;
 
@@ -29,43 +32,106 @@ internal sealed class SummaryRepository(AuthDbContext db) : ISummaryRepository
             x.Status == SummaryStatus.Succeeded && x.ExpiresAtUtc > now, ct);
 }
 
-public sealed class GroqSummarizer(HttpClient client, GroqOptions options) : ILlmSummarizer
+public sealed class GroqSummarizer(HttpClient client, GroqOptions options, ILogger<GroqSummarizer> logger) : ILlmSummarizer
 {
     public async Task<LlmSummary> SummarizeAsync(PromptEnvelope prompt, CancellationToken ct)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, "chat/completions");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.ApiKey);
+        for (var attempt = 1; attempt <= 2; attempt++)
+        {
+            var started = Stopwatch.GetTimestamp();
+            try
+            {
+                using var request = CreateRequest(prompt); using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+                var requestId = ProviderRequestId(response);
+                if (!response.IsSuccessStatusCode)
+                {
+                    var metadata = await SafeErrorMetadataAsync(response, ct); var category = FailureCategory(response.StatusCode, metadata);
+                    var retryable = response.StatusCode == HttpStatusCode.BadRequest && category == LlmFailureCategory.StructuredOutputGeneration;
+                    if (retryable && attempt == 1) { LogFailure(category, response.StatusCode, metadata, requestId, true, attempt, prompt.Version, started); continue; }
+                    throw Failure(FailureKind(response.StatusCode), category, response.StatusCode, metadata, requestId, attempt > 1, attempt, prompt.Version, started);
+                }
+                GroqResponse? body;
+                try { body = await response.Content.ReadFromJsonAsync<GroqResponse>(cancellationToken: ct); }
+                catch (JsonException ex) { throw Failure(LlmFailureKind.InvalidResponse, LlmFailureCategory.ResponseParsing, response.StatusCode, null, requestId, attempt > 1, attempt, prompt.Version, started, ex); }
+                var content = body?.Choices?.FirstOrDefault()?.Message?.Content;
+                if (string.IsNullOrWhiteSpace(content)) throw Failure(LlmFailureKind.InvalidResponse, LlmFailureCategory.ResponseParsing, response.StatusCode, null, requestId, attempt > 1, attempt, prompt.Version, started);
+                StructuredSummary? structured;
+                try { structured = JsonSerializer.Deserialize<StructuredSummary>(content); }
+                catch (JsonException ex) { throw Failure(LlmFailureKind.InvalidResponse, LlmFailureCategory.ResponseParsing, response.StatusCode, null, requestId, attempt > 1, attempt, prompt.Version, started, ex); }
+                if (structured?.Additional is { Count: > 0 }) throw Failure(LlmFailureKind.InvalidResponse, LlmFailureCategory.SchemaValidation, response.StatusCode, null, requestId, attempt > 1, attempt, prompt.Version, started);
+                var quality = structured?.Quality switch
+                {
+                    "sufficient" when !string.IsNullOrWhiteSpace(structured.Summary) => SummaryContentQuality.Sufficient,
+                    "insufficient" when string.IsNullOrEmpty(structured.Summary) => SummaryContentQuality.Insufficient,
+                    _ => throw Failure(LlmFailureKind.InvalidResponse, LlmFailureCategory.SchemaValidation, response.StatusCode, null, requestId, attempt > 1, attempt, prompt.Version, started)
+                };
+                return new(structured!.Summary, quality, "Groq", options.Model);
+            }
+            catch (OperationCanceledException ex) when (!ct.IsCancellationRequested) { throw Failure(LlmFailureKind.Timeout, LlmFailureCategory.Timeout, null, null, null, attempt > 1, attempt, prompt.Version, started, ex); }
+            catch (HttpRequestException ex) { throw Failure(LlmFailureKind.Unavailable, LlmFailureCategory.Network, null, null, null, attempt > 1, attempt, prompt.Version, started, ex); }
+        }
+        throw new InvalidOperationException("Unreachable provider retry state.");
+    }
+    private HttpRequestMessage CreateRequest(PromptEnvelope prompt)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "chat/completions"); request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.ApiKey);
         request.Content = JsonContent.Create(new GroqRequest(options.Model,
-            [new("system", prompt.SystemInstruction), new("user", prompt.UserContent)], options.MaxOutputTokens, 0,
+            [new("system", prompt.SystemInstruction), new("user", prompt.UserContent)], options.MaxOutputTokens, 0, "low",
             new("json_schema", new("summary_result", true, new("object", false,
                 new Dictionary<string, JsonSchemaProperty> { ["quality"] = new("string", ["sufficient", "insufficient"]), ["summary"] = new("string", null) },
-                ["quality", "summary"])))));
+                ["quality", "summary"]))))); return request;
+    }
+    private LlmProviderException Failure(LlmFailureKind kind, LlmFailureCategory category, HttpStatusCode? status, SafeProviderError? metadata,
+        string? requestId, bool retryOccurred, int attempt, string promptVersion, long started, Exception? inner = null)
+    {
+        LogFailure(category, status, metadata, requestId, retryOccurred, attempt, promptVersion, started);
+        return new(kind, category, "Groq", options.Model, status is null ? null : (int)status, metadata?.Type, metadata?.Code, requestId, retryOccurred, attempt, inner);
+    }
+    private void LogFailure(LlmFailureCategory category, HttpStatusCode? status, SafeProviderError? metadata, string? requestId,
+        bool retryOccurred, int attempt, string promptVersion, long started) =>
+        logger.LogWarning("Summarization provider failure; Category {FailureCategory}; ProviderStatus {ProviderStatus}; ErrorType {ErrorType}; ErrorCode {ErrorCode}; RetryOccurred {RetryOccurred}; Attempt {Attempt}; DurationMs {DurationMs}; PromptVersion {PromptVersion}; TraceId {TraceId}; ProviderRequestId {ProviderRequestId}",
+            category, status is null ? null : (int)status, metadata?.Type, metadata?.Code, retryOccurred, attempt,
+            (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds, promptVersion, Activity.Current?.TraceId.ToString(), requestId);
+    private static LlmFailureKind FailureKind(HttpStatusCode status) => status switch
+    { HttpStatusCode.TooManyRequests => LlmFailureKind.RateLimited, HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => LlmFailureKind.Configuration, _ when (int)status >= 500 => LlmFailureKind.Unavailable, _ => LlmFailureKind.InvalidResponse };
+    private static LlmFailureCategory FailureCategory(HttpStatusCode status, SafeProviderError metadata) => status switch
+    {
+        HttpStatusCode.BadRequest when metadata.IsStructuredOutputGeneration => LlmFailureCategory.StructuredOutputGeneration,
+        HttpStatusCode.BadRequest => LlmFailureCategory.InvalidRequest,
+        HttpStatusCode.TooManyRequests => LlmFailureCategory.ProviderRateLimit,
+        HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => LlmFailureCategory.Configuration,
+        _ when (int)status >= 500 => LlmFailureCategory.ProviderServer,
+        _ => LlmFailureCategory.InvalidRequest
+    };
+    private static async Task<SafeProviderError> SafeErrorMetadataAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        const int maxBytes = 16_384; await using var stream = await response.Content.ReadAsStreamAsync(ct); var buffer = new byte[maxBytes + 1]; var length = 0;
+        while (length < buffer.Length) { var read = await stream.ReadAsync(buffer.AsMemory(length, buffer.Length - length), ct); if (read == 0) break; length += read; }
+        if (length > maxBytes) return new(null, null, false);
         try
         {
-            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
-            if (!response.IsSuccessStatusCode) throw Failure(response.StatusCode switch
-            { HttpStatusCode.TooManyRequests => LlmFailureKind.RateLimited, HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => LlmFailureKind.Configuration, _ when (int)response.StatusCode >= 500 => LlmFailureKind.Unavailable, _ => LlmFailureKind.InvalidResponse });
-            var body = await response.Content.ReadFromJsonAsync<GroqResponse>(cancellationToken: ct);
-            var content = body?.Choices?.FirstOrDefault()?.Message?.Content;
-            if (string.IsNullOrWhiteSpace(content)) throw Failure(LlmFailureKind.InvalidResponse);
-            StructuredSummary? structured;
-            try { structured = JsonSerializer.Deserialize<StructuredSummary>(content); }
-            catch (JsonException) { throw Failure(LlmFailureKind.InvalidResponse); }
-            if (structured?.Additional is { Count: > 0 }) throw Failure(LlmFailureKind.InvalidResponse);
-            var quality = structured?.Quality switch
-            {
-                "sufficient" when !string.IsNullOrWhiteSpace(structured.Summary) => SummaryContentQuality.Sufficient,
-                "insufficient" when string.IsNullOrEmpty(structured.Summary) => SummaryContentQuality.Insufficient,
-                _ => throw Failure(LlmFailureKind.InvalidResponse)
-            };
-            return new(structured!.Summary, quality, "Groq", options.Model);
+            using var document = JsonDocument.Parse(buffer.AsMemory(0, length)); if (!document.RootElement.TryGetProperty("error", out var error) || error.ValueKind != JsonValueKind.Object) return new(null, null, false);
+            var type = SafeValue(error, "type"); var code = SafeValue(error, "code"); var hasFailedGeneration = error.TryGetProperty("failed_generation", out _);
+            var schemaMismatch = error.TryGetProperty("message", out var message) && message.ValueKind == JsonValueKind.String && message.GetString() == "Generated JSON does not match the expected schema. Please adjust your prompt.";
+            var knownCode = code is "json_validate_failed" or "structured_output_validation_failed"; return new(type, code, type == "invalid_request_error" && (hasFailedGeneration || schemaMismatch || knownCode));
         }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw Failure(LlmFailureKind.Timeout); }
-        catch (HttpRequestException) { throw Failure(LlmFailureKind.Unavailable); }
+        catch (JsonException) { return new(null, null, false); }
     }
-    private LlmProviderException Failure(LlmFailureKind kind) => new(kind, "Groq", options.Model);
+    private static string? SafeValue(JsonElement error, string name)
+    {
+        if (!error.TryGetProperty(name, out var value) || value.ValueKind != JsonValueKind.String) return null; var text = value.GetString();
+        return text is { Length: > 0 and <= 64 } && text.All(character => char.IsLetterOrDigit(character) || character is '_' or '-' or '.') ? text : null;
+    }
+    private static string? ProviderRequestId(HttpResponseMessage response)
+    {
+        foreach (var name in new[] { "x-request-id", "request-id" }) if (response.Headers.TryGetValues(name, out var values))
+        { var value = values.FirstOrDefault(); if (value is { Length: > 0 and <= 128 } && value.All(character => char.IsLetterOrDigit(character) || character is '_' or '-' or '.')) return value; }
+        return null;
+    }
+    private sealed record SafeProviderError(string? Type, string? Code, bool IsStructuredOutputGeneration);
     private sealed record GroqRequest([property: JsonPropertyName("model")] string Model, [property: JsonPropertyName("messages")] GroqMessage[] Messages,
         [property: JsonPropertyName("max_completion_tokens")] int MaxTokens, [property: JsonPropertyName("temperature")] double Temperature,
+        [property: JsonPropertyName("reasoning_effort")] string ReasoningEffort,
         [property: JsonPropertyName("response_format")] ResponseFormat ResponseFormat);
     private sealed record GroqMessage([property: JsonPropertyName("role")] string Role, [property: JsonPropertyName("content")] string Content);
     private sealed record GroqResponse([property: JsonPropertyName("choices")] GroqChoice[]? Choices);

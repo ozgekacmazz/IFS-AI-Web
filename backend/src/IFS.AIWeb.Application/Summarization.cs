@@ -14,13 +14,24 @@ public enum SummaryContentQuality { Sufficient, Insufficient }
 public sealed record LlmSummary(string? Text, SummaryContentQuality Quality, string Provider, string Model);
 
 public enum LlmFailureKind { Timeout, RateLimited, Unavailable, InvalidResponse, Configuration }
-public sealed class LlmProviderException(LlmFailureKind kind, string provider = "Unknown", string model = "Unknown") : Exception("LLM provider failure")
+public enum LlmFailureCategory { StructuredOutputGeneration, InvalidRequest, ProviderRateLimit, ProviderServer, Timeout, Network, ResponseParsing, SchemaValidation, Configuration }
+public sealed class LlmProviderException(LlmFailureKind kind, LlmFailureCategory category = LlmFailureCategory.InvalidRequest,
+    string provider = "Unknown", string model = "Unknown", int? providerStatusCode = null, string? safeErrorType = null,
+    string? safeErrorCode = null, string? providerRequestId = null, bool retryOccurred = false, int attemptNumber = 1,
+    Exception? innerException = null) : Exception("LLM provider failure", innerException)
 {
     public LlmFailureKind Kind { get; } = kind;
+    public LlmFailureCategory Category { get; } = category;
     public string Provider { get; } = provider;
     public string Model { get; } = model;
+    public int? ProviderStatusCode { get; } = providerStatusCode;
+    public string? SafeErrorType { get; } = safeErrorType;
+    public string? SafeErrorCode { get; } = safeErrorCode;
+    public string? ProviderRequestId { get; } = providerRequestId;
+    public bool RetryOccurred { get; } = retryOccurred;
+    public int AttemptNumber { get; } = attemptNumber;
 }
-public sealed class SummarizationFailedException(LlmFailureKind kind) : Exception("Summarization failed") { public LlmFailureKind Kind { get; } = kind; }
+public sealed class SummarizationFailedException(LlmFailureKind kind, Exception? innerException = null) : Exception("Summarization failed", innerException) { public LlmFailureKind Kind { get; } = kind; }
 public sealed class InsufficientSummaryContentException() : Exception("Insufficient summary content") { }
 public sealed class SummaryNotFoundException : Exception { }
 
@@ -74,7 +85,7 @@ public sealed class SummarizationService(ISummarizationPromptBuilder prompts, IL
                 await unit.SaveChangesAsync(CancellationToken.None); throw new InsufficientSummaryContentException();
             }
             var text = generated.Text?.Trim();
-            if (string.IsNullOrWhiteSpace(text)) throw new LlmProviderException(LlmFailureKind.InvalidResponse);
+            if (string.IsNullOrWhiteSpace(text)) throw new LlmProviderException(LlmFailureKind.InvalidResponse, LlmFailureCategory.SchemaValidation);
             var now = clock.UtcNow; var record = SummaryRecord.Create(command.UserId, command.Text, text, language,
                 SummaryStatus.Succeeded, generated.Provider, generated.Model, prompt.Version, (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds, now);
             summaries.Add(record); await unit.SaveChangesAsync(ct);
@@ -85,7 +96,7 @@ public sealed class SummarizationService(ISummarizationPromptBuilder prompts, IL
         {
             var now = clock.UtcNow; summaries.Add(SummaryRecord.Create(command.UserId, string.Empty, null, language,
                 SummaryStatus.Failed, ex.Provider, ex.Model, prompt.Version, (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds, now, ex.Kind.ToString()));
-            await unit.SaveChangesAsync(CancellationToken.None); throw new SummarizationFailedException(ex.Kind);
+            await unit.SaveChangesAsync(CancellationToken.None); throw new SummarizationFailedException(ex.Kind, ex);
         }
     }
     public async Task<IReadOnlyList<RecentSummaryResponse>> RecentAsync(Guid userId, CancellationToken ct) =>
