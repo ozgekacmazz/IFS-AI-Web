@@ -28,7 +28,8 @@ public sealed class AuthService(IUserRepository users, IRefreshTokenRepository t
         string normalized;
         try { normalized = AuthValidation.Username(command.Username).Normalized; } catch (RequestValidationException) { throw new AuthenticationFailedException(); }
         var user = await users.FindByNormalizedUsernameAsync(normalized, ct);
-        if (user is null || !user.IsActive || !passwords.Verify(user, user.PasswordHash, command.Password)) throw new AuthenticationFailedException();
+        if (user is null || !passwords.Verify(user, user.PasswordHash, command.Password)) throw new AuthenticationFailedException();
+        if (!user.IsActive) throw new AccountInactiveException();
         var refresh = NewRefresh(user.Id, Guid.NewGuid()); tokens.Add(refresh.Entity); await unit.SaveChangesAsync(ct);
         var access = accessTokens.Create(user); return new(access.Token, access.ExpiresAtUtc, Safe(user), refresh.Plaintext, refresh.Entity.ExpiresAtUtc);
     }

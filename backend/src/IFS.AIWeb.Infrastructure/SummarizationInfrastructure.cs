@@ -18,7 +18,7 @@ public sealed class GroqOptions
     public string Model { get; set; } = "openai/gpt-oss-120b";
     public string ApiKey { get; set; } = string.Empty;
     public int TimeoutSeconds { get; set; } = 30;
-    public int MaxOutputTokens { get; set; } = 500;
+    public int MaxOutputTokens { get; set; } = 900;
 }
 
 internal sealed class SummaryRepository(AuthDbContext db) : ISummaryRepository

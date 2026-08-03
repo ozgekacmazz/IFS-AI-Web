@@ -14,6 +14,7 @@ public sealed record RefreshResult(string AccessToken, DateTimeOffset AccessToke
 public sealed class RequestValidationException(Dictionary<string, string[]> errors) : Exception("İstek doğrulanamadı.") { public Dictionary<string, string[]> Errors { get; } = errors; }
 public sealed class UsernameConflictException : Exception { }
 public sealed class AuthenticationFailedException : Exception { }
+public sealed class AccountInactiveException : Exception { }
 
 public static partial class AuthValidation
 {

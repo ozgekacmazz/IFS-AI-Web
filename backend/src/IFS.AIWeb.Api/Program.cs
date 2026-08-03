@@ -80,7 +80,7 @@ static void ValidateOrigin(HttpContext context, string[] allowed) { var origin =
 static string SafePartition(ClaimsPrincipal principal) { var value = principal.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? "missing-authenticated-sub"; return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)))[..12]; }
 static async Task WriteError(HttpContext context)
 {
-    var error = context.Features.Get<IExceptionHandlerFeature>()!.Error; var (status, title) = error switch { RequestValidationException => (400, "Doğrulama hatası"), AuthenticationFailedException => (401, "Kimlik doğrulama başarısız"), AdminUserNotFoundException => (404, "Kullanıcı bulunamadı"), UsernameConflictException => (409, "Kullanıcı adı kullanılıyor"), AdminSelfDeactivationException => (409, "İşlem uygulanamadı"), AdminLastActiveException => (409, "İşlem uygulanamadı"), SummaryNotFoundException => (404, "Özet bulunamadı"), InsufficientSummaryContentException => (422, "Yetersiz içerik"), SummarizationFailedException { Kind: LlmFailureKind.Timeout } => (504, "Özetleme zaman aşımına uğradı"), SummarizationFailedException { Kind: LlmFailureKind.RateLimited } => (503, "Özetleme hizmeti meşgul"), SummarizationFailedException => (502, "Özetleme hizmeti kullanılamıyor"), BadHttpRequestException bad => (bad.StatusCode, "İstek reddedildi"), _ => (500, "Beklenmeyen hata") };
+    var error = context.Features.Get<IExceptionHandlerFeature>()!.Error; var (status, title) = error switch { RequestValidationException => (400, "Doğrulama hatası"), AuthenticationFailedException => (401, "Kimlik doğrulama başarısız"), AccountInactiveException => (403, "Erişim engellendi"), AdminUserNotFoundException => (404, "Kullanıcı bulunamadı"), UsernameConflictException => (409, "Kullanıcı adı kullanılıyor"), AdminSelfDeactivationException => (409, "İşlem uygulanamadı"), AdminLastActiveException => (409, "İşlem uygulanamadı"), SummaryNotFoundException => (404, "Özet bulunamadı"), InsufficientSummaryContentException => (422, "Yetersiz içerik"), SummarizationFailedException { Kind: LlmFailureKind.Timeout } => (504, "Özetleme zaman aşımına uğradı"), SummarizationFailedException { Kind: LlmFailureKind.RateLimited } => (503, "Özetleme hizmeti meşgul"), SummarizationFailedException => (502, "Özetleme hizmeti kullanılamıyor"), BadHttpRequestException bad => (bad.StatusCode, "İstek reddedildi"), _ => (500, "Beklenmeyen hata") };
     if (status == 500)
     {
         var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("SafeExceptionHandler");
@@ -90,6 +90,7 @@ static async Task WriteError(HttpContext context)
     {
         RequestValidationException => "Lütfen işaretlenen alanları düzeltin.",
         AuthenticationFailedException => "Kullanıcı adı veya şifre geçersiz ya da oturum kullanılamıyor.",
+        AccountInactiveException => "Hesabınız pasife alınmıştır. Lütfen yönetici ile iletişime geçin.",
         AdminUserNotFoundException => "İstenen kullanıcı bulunamadı.",
         UsernameConflictException => "Bu kullanıcı adı kullanılıyor.",
         AdminSelfDeactivationException => "Kendi hesabınızı pasife alamazsınız.",
@@ -105,6 +106,7 @@ static async Task WriteError(HttpContext context)
     context.Response.StatusCode = status; var problem = new ProblemDetails { Status = status, Title = title, Detail = detail };
     if (error is RequestValidationException validation) problem.Extensions["errors"] = validation.Errors;
     if (error is InsufficientSummaryContentException) problem.Extensions["code"] = "insufficient_content";
+    if (error is AccountInactiveException) problem.Extensions["code"] = "account_inactive";
     if (error is UsernameConflictException) problem.Extensions["errors"] = new Dictionary<string, string[]> { ["username"] = ["Bu kullanıcı adı kullanılıyor."] };
     await context.Response.WriteAsJsonAsync(problem);
 }

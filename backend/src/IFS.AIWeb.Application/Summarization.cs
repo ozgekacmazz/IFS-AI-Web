@@ -50,7 +50,7 @@ public interface ISummaryRepository
 
 public sealed class SummarizationPromptBuilder : ISummarizationPromptBuilder
 {
-    public const string PromptVersion = "summary-v4";
+    public const string PromptVersion = "summary-v5";
     public PromptEnvelope Build(string text, SummaryLanguage language, SummaryLengthProfile length)
     {
         var outputLanguage = language == SummaryLanguage.Turkish ? "Turkish" : "English";
@@ -62,6 +62,7 @@ public sealed class SummarizationPromptBuilder : ISummarizationPromptBuilder
             "If no coherent proposition can be identified without inventing context, or if you are uncertain whether coherent factual or explanatory content exists, return insufficient. " +
             "For insufficient content, summary must be exactly an empty string: do not echo, translate, explain, quote, label, describe, title, or otherwise reproduce the input. " +
             "For sufficient content, summary must be non-empty, use only facts present in the source, and use the selected output language. Never invent missing facts. " +
+            "For detailed sources, produce a rich, informative summary capturing major facts, key dates, events, entities, and decisions rather than a superficial 1-2 sentence overview. " +
             $"Length policy for this request: {length.PromptGuidance} The summary must contain no more than {length.EffectiveMaximumRunes} Unicode characters. " +
             "Use less text when the source contains too little information for the normal target. Never pad, repeat, explain unnecessarily, or rewrite the source merely to approach a target. " +
             "Classification examples (examples only, never source content): " +

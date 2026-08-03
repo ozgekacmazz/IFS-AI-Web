@@ -27,9 +27,9 @@ public sealed class SummaryLengthPolicy : ISummaryLengthPolicy
             <= 1_000 => ("short", "Kısa", 360,
                 "Use approximately 1-3 concise sentences, normally about 100-300 characters."),
             <= 4_000 => ("medium", "Orta", 800,
-                "Use approximately 3-6 concise sentences, normally about 250-650 characters."),
+                "Provide a well-structured summary of approximately 3-6 sentences (250-650 characters), covering key events, dates, and core facts."),
             _ => ("long", "Uzun", 1_500,
-                "Use approximately 5-10 concise sentences, normally about 500-1,200 characters.")
+                "Provide a comprehensive, detailed summary of approximately 5-10 cohesive sentences (500-1,200 characters), capturing all major dates, events, key entities, and important decisions.")
         };
         return new(id, label, sourceLength, maximum, Math.Min(maximum, sourceLength), guidance);
     }

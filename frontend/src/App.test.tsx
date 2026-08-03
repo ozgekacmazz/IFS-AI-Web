@@ -19,6 +19,10 @@ describe('Phase 2 authentication UI', () => {
   it('shows generic login failure', async () => {
     render(<MemoryRouter initialEntries={['/login']}><App /></MemoryRouter>); fireEvent.change(screen.getByLabelText('Kullanıcı adı'), { target: { value: 'someone' } }); fireEvent.change(screen.getByLabelText('Şifre'), { target: { value: 'wrong-password' } }); fireEvent.click(screen.getByRole('button', { name: 'Giriş yap' })); expect(await screen.findByRole('alert')).toHaveTextContent('Kullanıcı adı veya şifre geçersiz')
   })
+  it('shows clear inactive account message when deactivated user attempts login', async () => {
+    vi.mocked(fetch).mockImplementation((url) => String(url).endsWith('/api/auth/login') ? json({ status: 403, detail: 'Hesabınız pasife alınmıştır. Lütfen yönetici ile iletişime geçin.' }, 403) : json({}, 401))
+    render(<MemoryRouter initialEntries={['/login']}><App /></MemoryRouter>); fireEvent.change(screen.getByLabelText('Kullanıcı adı'), { target: { value: 'deactivated' } }); fireEvent.change(screen.getByLabelText('Şifre'), { target: { value: 'Valid123!' } }); fireEvent.click(screen.getByRole('button', { name: 'Giriş yap' })); expect(await screen.findByRole('alert')).toHaveTextContent('Hesabınız pasife alınmıştır. Lütfen yönetici ile iletişime geçin.')
+  })
   it('establishes authenticated UI without browser storage', async () => {
     const fetchMock = vi.mocked(fetch); fetchMock.mockImplementation((url) => String(url).endsWith('/api/auth/login') ? json({ accessToken: 'opaque', user: { username: 'test', firstName: 'Test', lastName: 'User', role: 'User' } }) : String(url).endsWith('/api/summaries/recent') ? json([]) : json({}, 401))
     const storageSpy = vi.spyOn(Storage.prototype, 'setItem'); render(<MemoryRouter initialEntries={['/login']}><App /></MemoryRouter>); await waitFor(() => expect(fetchMock).toHaveBeenCalled())

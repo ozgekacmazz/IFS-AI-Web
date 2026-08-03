@@ -93,7 +93,7 @@ public sealed class AdminApiTests(ApiFactory factory) : IClassFixture<ApiFactory
         Assert.Equal(HttpStatusCode.OK, deactivate.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await target.Client.GetAsync("/api/auth/me")).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await RefreshAsync(target.Cookie)).StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, (await LoginAsync(target.Username, "Secure123!")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await LoginAsync(target.Username, "Secure123!")).StatusCode);
         using (var scope = factory.Services.CreateScope())
         {
             var tokens = await scope.ServiceProvider.GetRequiredService<AuthDbContext>().RefreshTokens

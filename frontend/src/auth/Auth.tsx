@@ -26,7 +26,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => { mounted.current = true; void refresh().finally(() => setReady(true)); return () => { mounted.current = false } }, [refresh])
   const login = useCallback(async (username: string, password: string) => {
     const response = await sessionRequest('/api/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) })
-    if (!response.ok) throw new Error('Kullanıcı adı veya şifre geçersiz.')
+    if (!response.ok) {
+      if (response.status === 403) {
+        let message = 'Hesabınız pasife alınmıştır. Lütfen yönetici ile iletişime geçin.'
+        try {
+          const body = await response.json() as { detail?: string }
+          if (body.detail) message = body.detail
+        } catch { /* Safe fallback */ }
+        throw new Error(message)
+      }
+      throw new Error('Kullanıcı adı veya şifre geçersiz.')
+    }
     const data = await response.json() as SessionResponse; accessToken = data.accessToken; setUser(data.user)
   }, [])
   const logout = useCallback(async () => { try { await sessionRequest('/api/auth/logout', { method: 'POST' }) } finally { accessToken = null; setUser(null) } }, [])
@@ -45,7 +55,7 @@ export function AdminRoute() { const { user } = useAuth(); return user?.role ===
 
 export function LoginPage() {
   const { login } = useAuth(); const navigate = useNavigate(); const [error, setError] = useState(''); const [busy, setBusy] = useState(false)
-  async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); if (busy) return; const data = new FormData(event.currentTarget); const username = String(data.get('username') ?? '').trim(); const password = String(data.get('password') ?? ''); if (!username || !password) { setError('Kullanıcı adı ve şifre zorunludur.'); return } setBusy(true); setError(''); try { await login(username, password); navigate('/app') } catch { setError('Kullanıcı adı veya şifre geçersiz.') } finally { setBusy(false) } }
+  async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); if (busy) return; const data = new FormData(event.currentTarget); const username = String(data.get('username') ?? '').trim(); const password = String(data.get('password') ?? ''); if (!username || !password) { setError('Kullanıcı adı ve şifre zorunludur.'); return } setBusy(true); setError(''); try { await login(username, password); navigate('/app') } catch (err: unknown) { setError(err instanceof Error ? err.message : 'Kullanıcı adı veya şifre geçersiz.') } finally { setBusy(false) } }
   return <AuthForm title="Giriş yap" onSubmit={submit} error={error} busy={busy}><Field label="Kullanıcı adı" name="username" autoComplete="username" /><Field label="Şifre" name="password" type="password" autoComplete="current-password" /></AuthForm>
 }
 type FieldName = 'username' | 'firstName' | 'lastName' | 'password' | 'passwordConfirmation'
