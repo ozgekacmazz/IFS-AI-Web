@@ -2,7 +2,7 @@
 
 ## 1. Kaynak, Kapsam ve Durumlar
 
-Bu matris, **“IFS-AI-Web Uygulaması”** projesinin resmî ödev PDF'indeki ve ürün kararlarındaki tüm zorunlu, opsiyonel ve bonus gereksinimlerin gerçekleşme durumunu, somut uygulama kanıtlarını ve test karşılıklarını belgelemektedir. Tüm geliştirmeler, 128 backend test vakası ve 64 frontend test vakasıyla %100 doğrulanmış ve `0bcac4b` temel commit hash'i ile depoya aktarılmıştır.
+Bu matris, **“IFS-AI-Web Uygulaması”** projesinin resmî ödev PDF'indeki ve ürün kararlarındaki tüm zorunlu, opsiyonel ve bonus gereksinimlerin gerçekleşme durumunu, somut uygulama kanıtlarını ve test karşılıklarını belgelemektedir. Tüm geliştirmeler 128 backend test vakası ve 64 frontend test vakasıyla doğrulanmış olup incelemenin başladığı temel commit `0bcac4b`'dir.
 
 ### Durum Özeti
 - **Zorunlu Gereksinimler (21/21):** ✅ %100 Tamamlandı (Ekran görüntüleri: Manuel teslim bekliyor)

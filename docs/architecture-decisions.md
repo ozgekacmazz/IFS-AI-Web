@@ -44,7 +44,7 @@ Bu belge, **IFS-AI-Web** projesinin mimari kararlarını (ADR), tasarım ilkeler
 - **Uygulama Kanıtı:** `backend/src/IFS.AIWeb.Infrastructure/SummarizationInfrastructure.cs`.
 
 ### ADR-007 - Access/Refresh Token ve Pasif Kullanıcı Güvenlik Politikası
-- **Karar:** **[Evrilmiş karar]** JWT access token sunucu tarafındaki simetrik imzalama anahtarıyla HMAC-SHA256 algoritması kullanılarak imzalanır ve istemci belleğinde tutulur; 7 günlük refresh token ise `HttpOnly`, `SameSite=Strict`, `Secure` cookie olarak saklanır. Veritabanında yalnız SHA-256 hash'i tutulur.
+- **Karar:** **[Evrilmiş karar]** JWT access token sunucu tarafındaki simetrik imzalama anahtarıyla HMAC-SHA256 algoritması kullanılarak imzalanır ve istemci belleğinde tutulur; 7 günlük refresh token ise `HttpOnly`, `SameSite=Strict`, `Secure` cookie olarak saklanır. Refresh token yenilendiğinde kullanılan eski token iptal edilir ve aynı `FamilyId` ailesine bağlı yeni bir refresh token üretilir (token metni ve kaydının ID'si değişirken `FamilyId` aynı kalır; reuse detection aynı ailedeki tüm aktif tokenları iptal eder). Veritabanında yalnız SHA-256 hash'i tutulur.
 - **Pasif Kullanıcı Güncellemesi:** Yönetici tarafından pasife alınan bir kullanıcı giriş yapmaya çalıştığında jenerik hata yerine `AccountInactiveException` fırlatılır ve HTTP `403 Forbidden` cevabı ile `"Hesabınız pasife alınmıştır. Lütfen yönetici ile iletişime geçin."` mesajı döndürülür. Pasif kullanıcının var olan tüm refresh oturumları anında iptal edilir.
 - **Uygulama Kanıtı:** `AuthContracts.cs`, `AuthService.cs`, `Program.cs`, `frontend/src/auth/Auth.tsx`.
 

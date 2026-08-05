@@ -16,7 +16,7 @@
 - **📄 Birleşik PDF Rapor İndirme**: Permissive MIT lisanslı `PDFsharp 6.1.1` ve gömülü `NotoSans` TrueType font çözücü ile Unicode ve Türkçe glif desteğine sahip, şık ve indirilebilir PDF özet raporları.
 - **🔊 Metinden Sese (TTS) Sesli Okuma**: Özet kaydındaki seçili dile göre Web Speech API için `tr-TR` veya `en-US` konuşma dili atanarak çalışan sesli okuma ve durdurma özelliği.
 - **🎨 Vibrant Pink & Neon Violet AI Teması**: `Plus Jakarta Sans` tipografisi, yumuşatılmış kart hatları (`rounded-2xl`), mor-pembe soft gölgeler ve canlı gradyan butonlarla modern UI/UX deneyimi.
-- **🔐 Güvenli Kimlik Doğrulama & Oturum Yönetimi**: JWT access token (bellekte, HMAC-SHA256), SHA-256 hash'li HttpOnly refresh cookie, token ailesi rotasyonu ve eşzamanlı yenileme koruması.
+- **🔐 Güvenli Kimlik Doğrulama & Oturum Yönetimi**: JWT access token (bellekte, HMAC-SHA256), SHA-256 hash'li HttpOnly refresh cookie, aynı FamilyId ile token rotasyonu ve eşzamanlı yenileme koruması.
 - **🚫 Pasif Kullanıcı Koruması**: Pasife alınan kullanıcı girişlerinde jenerik hata yerine açık ve kibar Türkçe uyarı: *"Hesabınız pasife alınmıştır. Lütfen yönetici ile iletişime geçin."* (HTTP 403 Forbidden).
 - **🔒 Sıkı Sahiplik & Mahremiyet (Admin Bypass Engelleme)**: Kullanıcılar yalnız kendi özetlerinin detayına ve PDF'ine erişebilir. Yönetici (Admin) dahi başkasının özet ID'sini istediğinde 404 Not Found alır. Admin log ekranında kullanıcı metinleri en çok 160 karakterlik beyaz alanı temizlenmiş önizlemeyle gösterilir.
 - **⚡ Kullanıcı Başına Rate Limiting**: `POST /api/summaries` endpoint'i kullanıcı bazlı Sliding Window algoritmasıyla (5 izin / kalan süre dinamik Retry-After) korunur. PDF indirme ve feedback işlemleri rate-limit kotasını tüketmez.
@@ -95,7 +95,7 @@ npm run dev
 
 ## 🧪 Test Çalıştırma ve Kalite Metrikleri
 
-Projedeki backend ve frontend test paketlerinin tamamı başarılı durumdadır.
+Projedeki çalıştırılan tanımlı test vakalarının tamamı başarılı durumdadır.
 
 ### Backend Testleri (128 Test Vakası - %100 Başarılı)
 ```powershell
@@ -103,7 +103,7 @@ dotnet test backend/IFS.AIWeb.slnx --configuration Release
 ```
 - **Domain Tests:** 4 Passed
 - **Application Tests:** 64 Passed
-- **Integration Tests (PostgreSQL 18):** 60 Passed (32 test metodu / 60 teori vakası)
+- **Integration Tests (PostgreSQL 18):** 60 Passed (50 test metodu / 60 çalıştırılan test vakası)
 
 ### Frontend Testleri (64 Test - %100 Başarılı)
 ```powershell

@@ -37,7 +37,7 @@ export function AdminOverviewPage() {
     <section aria-labelledby="statistics-title"><h2 id="statistics-title">Son 7 günlük kullanım</h2><p className="muted">Veriler günlük olarak gösterilir.</p>
       <div className="metric-grid">
         <Metric label="Toplam işlem" value={totals?.total ?? 0} /><Metric label="Başarılı" value={totals?.succeeded ?? 0} /><Metric label="Başarısız" value={totals?.failed ?? 0} />
-        <Metric label="Başarı oranı" value={`%${rate.toLocaleString('tr-TR')}`} /><Metric label="Ortalama süre" value={`${average.toLocaleString('tr-TR')} ms`} /><Metric label="Aktif kullanıcı" value={statistics.activeUsers} />
+        <Metric label="Başarı oranı" value={`%${rate.toLocaleString('tr-TR')}`} /><Metric label="Ortalama süre" value={`${average.toLocaleString('tr-TR')} ms`} /><Metric label="Özetleme yapan kullanıcı" value={statistics.activeUsers} />
         <Metric label="Kullanıcı Memnuniyeti" value={hasFeedback ? `👍 %${Math.round(feedback!.satisfactionRate)}` : 'Henüz değerlendirme yok'} subtext={hasFeedback ? `(${feedback!.useful} Faydalı / ${feedback!.notUseful} Faydalı Değil)` : undefined} />
       </div>
       {provider && <p className="provider-summary"><strong>En çok kullanılan AI modeli:</strong> {provider.provider} / {provider.model} ({provider.total} işlem)</p>}

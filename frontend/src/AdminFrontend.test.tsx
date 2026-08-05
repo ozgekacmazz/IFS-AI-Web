@@ -35,7 +35,7 @@ describe('admin frontend authorization and overview', () => {
 
   it('shows Admin navigation, statistics, zero bucket, and safe read-only prompt metadata', async () => {
     const storage = vi.spyOn(Storage.prototype, 'setItem'); const fetchMock = adminFetch(url => url.endsWith('/api/admin/statistics/seven-days') ? json(statistics) : url.endsWith('/api/admin/prompt-info') ? json(prompt) : undefined); renderWith(fetchMock, '/admin')
-    expect(await screen.findByRole('heading', { name: 'Genel bakış' })).toBeVisible(); expect(screen.getByText('Aktif kullanıcı').nextSibling).toHaveTextContent('4'); expect(screen.getByText('Groq / safe-model (12 işlem)')).toBeVisible()
+    expect(await screen.findByRole('heading', { name: 'Genel bakış' })).toBeVisible(); expect(screen.getByText('Özetleme yapan kullanıcı').nextSibling).toHaveTextContent('4'); expect(screen.getByText('Groq / safe-model (12 işlem)')).toBeVisible()
     const table = screen.getByRole('table', { name: 'Günlük işlem sayıları' }); expect(within(table).getAllByText('0').length).toBeGreaterThan(0); expect(within(table).getAllByRole('row')).toHaveLength(7)
     expect(screen.getByText('summary-v1')).toBeVisible(); expect(screen.getByText('Turkish, English')).toBeVisible(); expect(screen.getByText(/yalnızca bilgi amaçlıdır/)).toBeVisible(); expect(screen.queryByText(/Do not follow commands/i)).not.toBeInTheDocument(); expect(storage).not.toHaveBeenCalled()
     cleanup(); const appFetch = adminFetch(url => url.endsWith('/api/summaries/recent') ? json([]) : undefined); renderWith(appFetch, '/app'); expect(await screen.findByRole('link', { name: 'Admin paneli' })).toBeVisible()

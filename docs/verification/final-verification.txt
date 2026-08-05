@@ -1,7 +1,11 @@
 ===================================================================
-IFS-AI-Web Final Technical Verification & Test Execution Log
-Timestamp: 2026-08-05T14:30:00Z
+IFS-AI-Web Final Technical Verification & Test Execution Summary
+Verification Date: 2026-08-05
+Timezone: Europe/Istanbul (UTC+03:00)
+Timestamp: 2026-08-05T14:30:00+03:00
 ===================================================================
+
+Note: Doğrulama komutlarının özet sonuçları bu dosyaya kaydedilmiştir. Hassas veriler, API anahtarları, şifreler veya ham token verileri içermez. Çalıştırılan tanımlı test vakalarının tamamı başarılıdır.
 
 1. BACKEND BUILD (Release)
 Command: dotnet build backend/IFS.AIWeb.slnx --configuration Release
@@ -12,8 +16,8 @@ Command: dotnet test backend/IFS.AIWeb.slnx --configuration Release --no-build
 Results:
 - IFS.AIWeb.Domain.Tests.dll: 4 Passed, 0 Failed, 0 Skipped
 - IFS.AIWeb.Application.Tests.dll: 64 Passed, 0 Failed, 0 Skipped
-- IFS.AIWeb.IntegrationTests.dll (Docker Postgres 18): 60 Passed (32 test methods / 60 cases), 0 Failed, 0 Skipped
-Total Backend Test Cases Passed: 128 (64 Application + 4 Domain + 60 Integration) / 100% Passed
+- IFS.AIWeb.IntegrationTests.dll (PostgreSQL 18): 60 Passed (50 test metodu / 60 çalıştırılan test vakası), 0 Failed, 0 Skipped
+Total Backend Test Cases Passed: 128 (64 Application + 4 Domain + 60 Integration) / Tüm vakalar başarılı
 
 3. FRONTEND LINTER
 Command: npm run lint
@@ -27,7 +31,7 @@ Results:
 - src/AdminFrontend.test.tsx: 8 Passed
 - src/Summarization.test.tsx: 23 Passed
 - src/ProductExperience.test.tsx: 13 Passed
-Total Frontend Test Cases Passed: 64 / 64 Passed (100%)
+Total Frontend Test Cases Passed: 64 / 64 Passed (Tüm vakalar başarılı)
 
 5. FRONTEND PRODUCTION BUILD
 Command: npm run build
@@ -37,6 +41,8 @@ Status: SUCCESS (0 Errors)
 - Font Family: Noto Sans (Verified TrueType metadata: Family="Noto Sans", PostScript="NotoSans-Regular" / "NotoSans-Bold")
 - SIL Open Font License 1.1: Embedded in Assets/Fonts/OFL.txt
 - Database: PostgreSQL 18-alpine (docker-compose.yml & Testcontainers)
+- Refresh Token Rotation: Same FamilyId maintained across rotation; reuse detection revokes active tokens in the family
+- Admin Metric: "Özetleme yapan kullanıcı" (statistics.activeUsers = son 7 günde özetleme yapan benzersiz kullanıcı sayısı)
 - Groq Max Completion Tokens: max_completion_tokens = 500 across all layers
 - JWT Signing Algorithm: HMAC-SHA256 (SymmetricSecurityKey)
 - Feedback API Contract: PUT /api/summaries/{id}/feedback {"value": "Useful" | "NotUseful"}

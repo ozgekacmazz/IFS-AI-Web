@@ -4,7 +4,7 @@
 
 **IFS-AI-Web**, kullanıcının yazdığı paragraf veya metinleri güvenli ve kontrollü bir yapay zeka prompt akışıyla (`summary-v5`) LLM'e (Groq `openai/gpt-oss-120b`, `max_completion_tokens: 500`) göndererek kaynağa sadık, Türkçe veya İngilizce detaylı özetler üreten; özetleri indirilebilir kurumsal PDF raporlarına dönüştüren; kimlik doğrulama, rol tabanlı yetkilendirme, yönetici denetim kaydı (audit log) ve kullanıcı yönetimi sunan modern bir web uygulamasıdır.
 
-Tüm ürün gereksinimleri, 128 backend test vakası ve 64 frontend test vakasıyla %100 doğrulanmış ve `0bcac4b` temel commit hash'i ile depoda tamamlanmıştır.
+Tüm ürün gereksinimleri, 128 backend test vakası ve 64 frontend test vakasıyla doğrulanmış olup incelemenin başladığı temel commit `0bcac4b`'dir.
 
 ---
 
@@ -30,7 +30,7 @@ Tüm ürün gereksinimleri, 128 backend test vakası ve 64 frontend test vakası
 
 ## 3. Tamamlanan Temel Senaryolar ve Ürün Kapsamı
 
-1. **Kayıt ve Giriş:** Kullanıcı adı ve parola ile güvenli kimlik doğrulama. SHA-256 hash'li HttpOnly refresh cookie ve bellekte tutulan JWT access token (HMAC-SHA256).
+1. **Kayıt ve Giriş:** Kullanıcı adı ve parola ile güvenli kimlik doğrulama. SHA-256 hash'li HttpOnly refresh cookie (aynı `FamilyId` ailesine bağlı yenileme rotasyonu) ve bellekte tutulan JWT access token (HMAC-SHA256).
 2. **Pasif Kullanıcı Giriş Uyarısı:** Pasife alınan kullanıcılara giriş sırasında jenerik hata yerine açık uyarı: *"Hesabınız pasife alınmıştır. Lütfen yönetici ile iletişime geçin."* (HTTP 403 Forbidden).
 3. **Adaptif Özetleme (`summary-v5`):** Metin uzunluğuna göre otomatik adaptif kısıtlar. Uzun kaynak metinlerde tarih, olay ve kilit noktaları içeren zengin özet üretimi (`max_completion_tokens: 500`).
 4. **Birleşik PDF Rapor İndirme:** `PDFsharp 6.1.1` ve gömülü `NotoSans` font çözücü ile Türkçe glif destekli PDF indirme (`GET /api/summaries/{id}/pdf`).
@@ -45,7 +45,7 @@ Tüm ürün gereksinimleri, 128 backend test vakası ve 64 frontend test vakası
 - **Backend Test Kapsamı:** 128 Test Vakası BAŞARILI (%100).
   - `IFS.AIWeb.Domain.Tests`: 4 Passed
   - `IFS.AIWeb.Application.Tests`: 64 Passed
-  - `IFS.AIWeb.IntegrationTests` (PostgreSQL 18): 60 Passed (32 test metodu / 60 teori vakası)
+  - `IFS.AIWeb.IntegrationTests` (PostgreSQL 18): 60 Passed (50 test metodu / 60 çalıştırılan test vakası)
 - **Frontend Test Kapsamı:** 64 / 64 Test BAŞARILI (%100).
 - **Frontend Lint (ESLint):** 0 Hata, 0 Uyarı (%100 Temiz).
 - **Frontend Production Build:** Vite & TypeScript 0 hata ile derlenir.

@@ -1,6 +1,6 @@
 # IFS-AI-Web: Uçtan Uca Mimari, Güvenlik, Canlı Demo ve Ürün Rehberi
 
-> **Sürüm / Temel Commit:** İncelemenin başladığı temel commit: `0bcac4b` (Sürüm: Final Teslim Çalışma Seti)  
+> **Sürüm / Temel Commit:** İncelemenin başladığı temel commit `0bcac4b` olup final kod–dokümantasyon eşitleme çalışması sonraki teslim commit’lerinde tamamlanmıştır.  
 > **Mimari:** ASP.NET Core 10 (Clean Architecture, Minimal API) + React 19 / TypeScript (Vite SPA)  
 > **Veritabanı & Altyapı:** PostgreSQL 18 (`postgres:18-alpine`, EF Core 10), Docker, Groq LLM API (`openai/gpt-oss-120b`, `max_completion_tokens: 500`), PDFsharp 6.1.1, Web Speech API (Native TTS)  
 > **Test Kapsamı:** 128 Backend Test Vakası (%100 Başarılı), 64 Frontend Test Vakası (%100 Başarılı), 0 ESLint Hatası, %100 Başarılı Prodüksiyon Derlemesi  
@@ -147,7 +147,7 @@ JWT access token, sunucu tarafındaki simetrik imzalama anahtarıyla **HMAC-SHA2
 
 ### 3.2 Token Family Rotation ve PostgreSQL `SELECT ... FOR UPDATE`
 
-Refresh token yenilendiğinde eski token iptal edilir ve yeni token ailesi oluşturulur. Önceden kullanılmış bir token sunulduğunda hırsızlık tespiti tetiklenir ve aileye ait tüm token'lar iptal edilir.
+Refresh token yenilendiğinde kullanılan eski token iptal edilir ve aynı `FamilyId` ailesine bağlı yeni bir refresh token üretilir. Daha önce kullanılmış veya iptal edilmiş bir refresh token yeniden sunulursa reuse detection çalışır ve aynı aileye ait aktif tokenlar iptal edilir. Token metni ve kaydının ID'si değişirken `FamilyId` aynı kalır ve rotation zinciri aynı aile üzerinden devam eder.
 
 Yenileme isteğinde yarış durumlarını (race condition) önlemek için PostgreSQL satır düzeyinde kilitleme kullanılır:
 
@@ -243,7 +243,7 @@ Projedeki çalıştırılan tanımlı test vakalarının tamamı başarılıdır
 
 - **Domain Tests:** 4 Passed
 - **Application Tests:** 64 Passed
-- **Integration Tests (PostgreSQL 18):** 60 Passed (32 test metodu / 60 teori vakası)
+- **Integration Tests (PostgreSQL 18):** 60 Passed (50 test metodu / 60 çalıştırılan test vakası)
 - **Frontend Vitest Suite:** 64 Passed
 - **ESLint:** 0 Hata, 0 Uyarı
 - **Production Build:** 0 Hata
