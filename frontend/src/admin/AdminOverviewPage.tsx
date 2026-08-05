@@ -8,20 +8,18 @@ export function AdminOverviewPage() {
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
   const load = useCallback(async (signal?: AbortSignal) => { await Promise.resolve(); setState('loading'); try { const [nextStatistics, nextPrompt] = await Promise.all([adminApi.statistics(request, signal), adminApi.promptInfo(request, signal)]); setStatistics(nextStatistics); setPrompt(nextPrompt); setState('ready') } catch (error) { if ((error as Error).name !== 'AbortError') setState('error') } }, [request])
   useEffect(() => {
-    let active = true
-    Promise.all([adminApi.statistics(request), adminApi.promptInfo(request)])
+    const controller = new AbortController()
+    Promise.all([adminApi.statistics(request, controller.signal), adminApi.promptInfo(request, controller.signal)])
       .then(([nextStatistics, nextPrompt]) => {
-        if (active) {
-          setStatistics(nextStatistics)
-          setPrompt(nextPrompt)
-          setState('ready')
-        }
+        setStatistics(nextStatistics)
+        setPrompt(nextPrompt)
+        setState('ready')
       })
       .catch(error => {
-        if (active && (error as Error).name !== 'AbortError') setState('error')
+        if ((error as Error).name !== 'AbortError') setState('error')
       })
     return () => {
-      active = false
+      controller.abort()
     }
   }, [request])
   const totals = useMemo(() => statistics?.days.reduce((value, day) => ({ total: value.total + day.total, succeeded: value.succeeded + day.succeeded, failed: value.failed + day.failed, duration: value.duration + day.averageDurationMilliseconds * day.total }), { total: 0, succeeded: 0, failed: 0, duration: 0 }), [statistics])

@@ -32,9 +32,12 @@ describe('Phase 2 authentication UI', () => {
     vi.mocked(fetch).mockImplementationOnce(() => json({ accessToken: 'opaque', user: { username: 'member', firstName: 'Member', lastName: 'User', role: 'User' } }))
     render(<MemoryRouter initialEntries={['/app/admin-check']}><App /></MemoryRouter>); expect(await screen.findByRole('heading', { name: 'Erişim yasak' })).toBeVisible()
   })
-  it('allows an Admin to open the proof route', async () => {
-    vi.mocked(fetch).mockImplementationOnce(() => json({ accessToken: 'opaque', user: { username: 'admin', firstName: 'Admin', lastName: 'User', role: 'Admin' } }))
-    render(<MemoryRouter initialEntries={['/app/admin-check']}><App /></MemoryRouter>); expect(await screen.findByRole('heading', { name: 'Yönetici yetkilendirmesi' })).toBeVisible()
+  it('allows an Admin to open the proof route and redirects to admin overview', async () => {
+    vi.mocked(fetch)
+      .mockImplementationOnce(() => json({ accessToken: 'opaque', user: { username: 'admin', firstName: 'Admin', lastName: 'User', role: 'Admin' } }))
+      .mockImplementationOnce(() => json({ fromUtc: '', toExclusiveUtc: '', days: [], providers: [], activeUsers: 0 }))
+      .mockImplementationOnce(() => json({ version: 'v1', purpose: 'summary', supportedLanguages: ['Turkish', 'English'], editable: false }))
+    render(<MemoryRouter initialEntries={['/app/admin-check']}><App /></MemoryRouter>); expect(await screen.findByRole('heading', { name: 'Genel bakış' })).toBeVisible()
   })
   it('logout clears state and returns to login', async () => {
     vi.mocked(fetch).mockImplementationOnce(() => json({ accessToken: 'opaque', user: { username: 'member', firstName: 'Member', lastName: 'User', role: 'User' } })).mockImplementationOnce(() => Promise.resolve(new Response(null, { status: 204 })))

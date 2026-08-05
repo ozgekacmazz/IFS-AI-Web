@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type RefObject } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/Auth'
 import { deriveSummaryTitle, type SummaryLanguage } from '../summaryTitles'
 
@@ -165,26 +165,30 @@ function DetailView({ item, target, loading, error, feedbackPending, feedbackErr
   const summaryReadSecs = Math.max(1, Math.round((summaryLen / 1000) * 60))
   const timeSaved = sourceLen > 0 ? Math.max(0, Math.round((1 - summaryLen / sourceLen) * 100)) : 0
 
-  return <article className="summary-detail"><div className="detail-toolbar"><button className="text-button" onClick={onBack}>← Geri dön</button><button className="text-button" onClick={onNew}>Yeni özet</button><button type="button" className="text-button pdf-download-action" disabled={pdfPending} onClick={() => onDownloadPdf(item.id)}><DownloadIcon /><span>{pdfPending ? 'İndiriliyor…' : 'PDF İndir'}</span></button><button type="button" className="speak-action" aria-pressed={speaking} aria-label={speaking ? 'Sesli okumayı durdur' : 'Sesli dinle'} onClick={toggleSpeech}>{speaking ? <StopIcon /> : <VolumeIcon />}<span>{speaking ? 'Durdur' : 'Sesli Dinle'}</span></button><button className="pin-action" aria-pressed={pinned} onClick={() => onPin(item.id)}><PinIcon />{pinned ? 'Sabitlemeyi kaldır' : 'Sabitle'}</button></div>{pdfError && <p className="error" role="alert">{pdfError}</p>}<span className="language-badge">{item.language === 'Turkish' ? 'Türkçe' : 'English'}</span><h1 ref={headingRef} tabIndex={-1}>{titleFor(item)}</h1><time dateTime={item.createdAtUtc}>{formatDate(item.createdAtUtc)}</time><div className="stats-badge-grid"><div className="stat-badge"><span className="badge-icon">📜</span><span>Kaynak Metin: <strong>{sourceLen.toLocaleString('tr-TR')} Karakter</strong> (~{sourceReadMins} dk okuma)</span></div><div className="stat-badge"><span className="badge-icon">⚡</span><span>Özet: <strong>{summaryLen.toLocaleString('tr-TR')} Karakter</strong> (~{summaryReadSecs} sn okuma)</span></div><div className="stat-badge highlight"><span className="badge-icon">🎯</span><span>Zaman Tasarrufu: <strong>%{timeSaved} Verimlilik</strong></span></div></div><section className="detail-section" aria-labelledby="source-text-title"><div className="section-header"><h2 id="source-text-title">Kaynak metin</h2><CopyButton text={item.inputText} label="Kaynak metni kopyala" /></div><div className="source-content preserve-lines">{item.inputText}</div></section><section className="detail-section" aria-labelledby="generated-summary-title"><div className="section-header"><h2 id="generated-summary-title">Oluşturulan özet</h2><CopyButton text={item.summary} label="Özeti kopyala" /></div><div className="summary-content preserve-lines">{item.summary}</div></section><section className="feedback-panel" aria-labelledby="feedback-title"><h2 id="feedback-title">Bu özet faydalı mı?</h2><div className="feedback-actions"><button type="button" aria-pressed={item.feedback === 'Useful'} disabled={feedbackPending} onClick={() => onFeedback('Useful')}>Faydalı</button><button type="button" aria-pressed={item.feedback === 'NotUseful'} disabled={feedbackPending} onClick={() => onFeedback('NotUseful')}>Faydalı değil</button></div>{item.feedback && <p className="feedback-confirmation" role="status">{feedbackStatus(item.feedback)}</p>}{feedbackError && <p className="error" role="alert">{feedbackError}</p>}</section></article>
+  const hasSpeechSupport = typeof window !== 'undefined' && 'speechSynthesis' in window
+  return <article className="summary-detail"><div className="detail-toolbar"><button className="text-button" onClick={onBack}>← Geri dön</button><button className="text-button" onClick={onNew}>Yeni özet</button><button type="button" className="text-button pdf-download-action" disabled={pdfPending} onClick={() => onDownloadPdf(item.id)}><DownloadIcon /><span>{pdfPending ? 'İndiriliyor…' : 'PDF İndir'}</span></button><button type="button" className="speak-action" disabled={!hasSpeechSupport} aria-pressed={speaking} aria-label={speaking ? 'Sesli okumayı durdur' : 'Sesli dinle'} onClick={toggleSpeech}>{speaking ? <StopIcon /> : <VolumeIcon />}<span>{speaking ? 'Durdur' : 'Sesli Dinle'}</span></button><button className="pin-action" aria-pressed={pinned} onClick={() => onPin(item.id)}><PinIcon />{pinned ? 'Sabitlemeyi kaldır' : 'Sabitle'}</button></div>{pdfError && <p className="error" role="alert">{pdfError}</p>}<span className="language-badge">{item.language === 'Turkish' ? 'Türkçe' : 'English'}</span><h1 ref={headingRef} tabIndex={-1}>{titleFor(item)}</h1><time dateTime={item.createdAtUtc}>{formatDate(item.createdAtUtc)}</time><div className="stats-badge-grid"><div className="stat-badge"><span className="badge-icon">📜</span><span>Kaynak Metin: <strong>{sourceLen.toLocaleString('tr-TR')} Karakter</strong> (~{sourceReadMins} dk okuma)</span></div><div className="stat-badge"><span className="badge-icon">⚡</span><span>Özet: <strong>{summaryLen.toLocaleString('tr-TR')} Karakter</strong> (~{summaryReadSecs} sn okuma)</span></div><div className="stat-badge highlight"><span className="badge-icon">🎯</span><span>Zaman Tasarrufu: <strong>%{timeSaved} Verimlilik</strong></span></div></div><section className="detail-section" aria-labelledby="source-text-title"><div className="section-header"><h2 id="source-text-title">Kaynak metin</h2><CopyButton text={item.inputText} label="Kaynak metni kopyala" /></div><div className="source-content preserve-lines">{item.inputText}</div></section><section className="detail-section" aria-labelledby="generated-summary-title"><div className="section-header"><h2 id="generated-summary-title">Oluşturulan özet</h2><CopyButton text={item.summary} label="Özeti kopyala" /></div><div className="summary-content preserve-lines">{item.summary}</div></section><section className="feedback-panel" aria-labelledby="feedback-title"><h2 id="feedback-title">Bu özet faydalı mı?</h2><div className="feedback-actions"><button type="button" aria-pressed={item.feedback === 'Useful'} disabled={feedbackPending} onClick={() => onFeedback('Useful')}>Faydalı</button><button type="button" aria-pressed={item.feedback === 'NotUseful'} disabled={feedbackPending} onClick={() => onFeedback('NotUseful')}>Faydalı değil</button></div>{item.feedback && <p className="feedback-confirmation" role="status">{feedbackStatus(item.feedback)}</p>}{feedbackError && <p className="error" role="alert">{feedbackError}</p>}</section></article>
 }
 function matchesSearch(item: Summary | SummaryDetail, query: string) {
   const q = query.trim().toLowerCase()
   if (!q) return true
   const title = titleFor(item).toLowerCase()
   const summary = item.summary.toLowerCase()
-  const source = ('inputText' in item && typeof item.inputText === 'string') ? item.inputText.toLowerCase() : ''
-  return title.includes(q) || summary.includes(q) || source.includes(q)
+  return title.includes(q) || summary.includes(q)
 }
 function CopyButton({ text, label = 'Kopyala' }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false)
-  function handleCopy() {
+  async function handleCopy() {
     if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-      void navigator.clipboard.writeText(text)
+      try {
+        await navigator.clipboard.writeText(text)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      } catch {
+        /* Prevent copied indicator on permission denial or clipboard error */
+      }
     }
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
   }
-  return <button type="button" className="copy-action" aria-label={copied ? 'Kopyalandı' : label} onClick={handleCopy}>{copied ? <CheckIcon /> : <CopyIcon />}<span>{copied ? 'Kopyalandı! ✓' : 'Kopyala'}</span></button>
+  return <button type="button" className="copy-action" aria-label={copied ? 'Kopyalandı' : label} onClick={() => { void handleCopy() }}>{copied ? <CheckIcon /> : <CopyIcon />}<span>{copied ? 'Kopyalandı! ✓' : 'Kopyala'}</span></button>
 }
 function feedbackStatus(value: SummaryFeedback) { return value === 'Useful' ? 'Faydalı olarak değerlendirildi' : 'Faydalı değil olarak değerlendirildi' }
 function titleFor(item: Summary | SummaryDetail) { return deriveSummaryTitle('inputText' in item ? item.inputText : undefined, item.summary, item.language) }
@@ -210,4 +214,4 @@ function CopyIcon() { return <svg aria-hidden="true" viewBox="0 0 24 24"><rect x
 function CheckIcon() { return <svg aria-hidden="true" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg> }
 function SearchIcon() { return <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg> }
 
-export function AdminCheckPage() { return <section className="page-card"><h1>Yönetici yetkilendirmesi</h1><p>Yönetim deneyimi sonraki geliştirme aşamasında tamamlanacaktır.</p></section> }
+export function AdminCheckPage() { return <Navigate to="/admin" replace /> }

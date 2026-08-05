@@ -121,6 +121,23 @@ describe('summarization experience', () => {
     expect(await screen.findByText('Kopyalandı! ✓')).toBeVisible()
   })
 
+  it('safely handles clipboard copy rejection without showing success state', async () => {
+    const writeTextMock = vi.fn().mockRejectedValue(new Error('Permission denied'))
+    vi.stubGlobal('navigator', { ...globalThis.navigator, clipboard: { writeText: writeTextMock } })
+    const fetchMock = renderApp()
+    fetchMock.mockImplementationOnce(() => response({ id: 'badge-err', summary: 'Özet metin.', language: 'Turkish', createdAtUtc: new Date().toISOString(), expiresAtUtc: new Date().toISOString() }))
+      .mockImplementationOnce(() => response([]))
+
+    const area = await screen.findByLabelText('Kaynak metin')
+    fireEvent.change(area, { target: { value: 'Detaylı kaynak metin içeriği.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Özet oluştur' }))
+
+    const copyButtons = await screen.findAllByRole('button', { name: /kopyala/i })
+    fireEvent.click(copyButtons[0])
+    await act(async () => {})
+    expect(screen.queryByText('Kopyalandı! ✓')).not.toBeInTheDocument()
+  })
+
   it('filters library summaries using the search input', async () => {
     const items = [
       { id: 'search-1', summary: 'Finansal rapor özeti', language: 'Turkish', createdAtUtc: new Date().toISOString(), expiresAtUtc: new Date().toISOString() },

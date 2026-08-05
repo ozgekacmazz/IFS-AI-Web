@@ -1,6 +1,6 @@
 # Mimari Kararlar
 
-Bu belge, **IFS-AI-Web** projesinin mimari kararlarını (ADR), tasarım ilkelerini ve evrilen sistem bileşenlerini belgelemektedir. Tüm mimari kararlar 100/100 backend ve 60/60 frontend otomatik testleri ile %100 doğrulanmış ve `0ffb2a4` commit hash'i ile kayıt altına alınmıştır.
+Bu belge, **IFS-AI-Web** projesinin mimari kararlarını (ADR), tasarım ilkelerini ve evrilen sistem bileşenlerini belgelemektedir. Tüm mimari kararlar 128 backend test vakası ve 64 frontend test vakası ile %100 doğrulanmış ve `0bcac4b` temel commit hash'i ile kayıt altına alınmıştır.
 
 ---
 
@@ -24,10 +24,10 @@ Bu belge, **IFS-AI-Web** projesinin mimari kararlarını (ADR), tasarım ilkeler
 - **Bağlam ve Gerekçe:** Yüksek performans, tam tip güvenliği, özelleştirilebilir tasarım ve hızlı Vite derleme süreci.
 - **Uygulama Kanıtı:** `frontend/package.json`, `frontend/src/App.tsx`, `frontend/src/auth/Auth.tsx`, `frontend/src/pages/AppPage.tsx`.
 
-### ADR-003 - Veritabanı: PostgreSQL ve EF Core
-- **Karar:** **[Teknik karar]** Kullanıcılar, refresh token kayıtları ve özet denetim kayıtları PostgreSQL veritabanında EF Core Code-First yaklaşımıyla tutulur.
+### ADR-003 - Veritabanı: PostgreSQL 18 ve EF Core
+- **Karar:** **[Teknik karar]** Kullanıcılar, refresh token kayıtları ve özet denetim kayıtları PostgreSQL 18 (`postgres:18-alpine`) veritabanında EF Core Code-First yaklaşımıyla tutulur.
 - **Bağlam ve Gerekçe:** Rol, kullanıcı, token ailesi ve özet kayıtları ilişkisel bütünlük, indeks ve işlemsel güncelleme gerektirir. `users`, `refresh_tokens` ve `summary_records` tabloları üzerinde benzersiz hash indeksleri bulunur.
-- **Uygulama Kanıtı:** `backend/src/IFS.AIWeb.Infrastructure/AuthDbContext.cs`, `Migrations/`.
+- **Uygulama Kanıtı:** `backend/src/IFS.AIWeb.Infrastructure/AuthDbContext.cs`, `Migrations/`, `docker-compose.yml`.
 
 ### ADR-004 - Clean Architecture Katmanları
 - **Karar:** **[Teknik karar]** Backend 4 ayrık katmandan oluşur: `Domain`, `Application`, `Infrastructure` ve `Api`.
@@ -40,24 +40,24 @@ Bu belge, **IFS-AI-Web** projesinin mimari kararlarını (ADR), tasarım ilkeler
 
 ### ADR-006 - LLM Sağlayıcı Soyutlaması ve Groq Yapılandırılmış Çıktısı
 - **Karar:** **[Evrilmiş karar]** `ILlmSummarizer` soyutlaması üzerinden Groq Chat Completions HTTP API'si (`openai/gpt-oss-120b`) kullanılmıştır.
-- **Evrim:** Max completion token sınırı **500'den 900'e** çıkarılmış; `response_format.type = json_schema`, `strict = true` ile kesin yapılandırılmış JSON çıktısı zorunlu kılınmıştır.
+- **Evrim:** Max completion token sınırı `500` (`max_completion_tokens: 500`) olarak sabitlenmiş; `response_format.type = json_schema`, `strict = true` ile kesin yapılandırılmış JSON çıktısı zorunlu kılınmıştır.
 - **Uygulama Kanıtı:** `backend/src/IFS.AIWeb.Infrastructure/SummarizationInfrastructure.cs`.
 
 ### ADR-007 - Access/Refresh Token ve Pasif Kullanıcı Güvenlik Politikası
-- **Karar:** **[Evrilmiş karar]** 15 dakikalık imzalı JWT access token istemci belleğinde; 7 günlük refresh token ise `HttpOnly`, `SameSite=Strict`, `Secure` cookie olarak saklanır. Veritabanında yalnız SHA-256 hash'i tutulur.
+- **Karar:** **[Evrilmiş karar]** JWT access token sunucu tarafındaki simetrik imzalama anahtarıyla HMAC-SHA256 algoritması kullanılarak imzalanır ve istemci belleğinde tutulur; 7 günlük refresh token ise `HttpOnly`, `SameSite=Strict`, `Secure` cookie olarak saklanır. Veritabanında yalnız SHA-256 hash'i tutulur.
 - **Pasif Kullanıcı Güncellemesi:** Yönetici tarafından pasife alınan bir kullanıcı giriş yapmaya çalıştığında jenerik hata yerine `AccountInactiveException` fırlatılır ve HTTP `403 Forbidden` cevabı ile `"Hesabınız pasife alınmıştır. Lütfen yönetici ile iletişime geçin."` mesajı döndürülür. Pasif kullanıcının var olan tüm refresh oturumları anında iptal edilir.
 - **Uygulama Kanıtı:** `AuthContracts.cs`, `AuthService.cs`, `Program.cs`, `frontend/src/auth/Auth.tsx`.
 
 ### ADR-008 - Adaptif Özet Politikası ve Prompt Sürümü (`summary-v5`)
 - **Karar:** **[Evrilmiş karar]** Metin uzunluğuna göre adaptif kısıtlar uygulayan `SummaryLengthPolicy` geliştirilmiştir.
-- **Evrim:** Prompt sürümü `summary-v5` seviyesine yükseltilmiştir. Uzun kaynak metinlerde (2000+ karakter) yüzeysel 1-2 cümlelik özetler yerine, kilit tarihleri, olayları, aktörleri ve kararları kapsayan zengin, tutarlı ve yapılandırılmış özet üretilmesi sağlayan yönlendirmeler eklenmiştir.
+- **Evrim:** Prompt sürümü `summary-v5` seviyesine yükseltilmiştir (`STRICT LANGUAGE RULE`). Uzun kaynak metinlerde tarih, olay ve kilit noktaları kapsayan zengin, tutarlı ve yapılandırılmış özet üretilmesi sağlayan yönlendirmeler eklenmiştir.
 - **Uygulama Kanıtı:** `SummaryLengthPolicy.cs`, `Summarization.cs` (`SummarizationPromptBuilder`).
 
 ### ADR-009 - Sıkı Structured Output Doğrulaması ve Kontrollü Retry
 - **Karar:** **[Teknik karar]** Groq API'sinden dönen JSON yanıtının `quality` ve `summary` alanları şema kontrolünden geçirilir. Yalnızca kısıtlı ve kanıtlanmış JSON şema uyuşmazlığı durumlarında en çok 1 defa kontrollü retry yapılır.
 
 ### ADR-010 - Kullanıcı Başına Sliding Window Rate Limiting
-- **Karar:** **[Bonus karar]** `POST /api/summaries` endpoint'i JWT `sub` doğrulamasına dayalı Sliding Window algoritmasıyla (5 izin / 60 saniye / 60 segment) korunur. Limiti aşan isteklere HTTP `429 Too Many Requests` ve `Retry-After` header'ı dönülür.
+- **Karar:** **[Bonus karar]** `POST /api/summaries` endpoint'i JWT `sub` doğrulamasına dayalı Sliding Window algoritmasıyla (5 izin / 60 saniye / 60 segment) korunur. Limiti aşan isteklere HTTP `429 Too Many Requests` ve dinamik `Retry-After` header'ı dönülür.
 - **Uygulama Kanıtı:** `Program.cs` (`SummaryRateLimitPolicy`).
 
 ### ADR-011 - İçerik Kalıcılığı, Log Maskeleme ve 30 Günlük Saklama
@@ -73,14 +73,14 @@ Bu belge, **IFS-AI-Web** projesinin mimari kararlarını (ADR), tasarım ilkeler
 - **Karar:** **[PDF gereksinimi]** API anahtarları ve veritabanı şifreleri koda yazılmaz; `.env` ve .NET User Secrets üzerinden yönetilir.
 
 ### ADR-015 - Bütüncül Test Stratejisi
-- **Karar:** **[Teknik karar]** Backend tarafında Domain, Application, Integration (Testcontainers PostgreSQL), Frontend tarafında Vitest ve React Testing Library ile kapsayıcı test paketi kurulmuştur. Toplam 100 backend ve 60 frontend testi %100 başarılıdır.
+- **Karar:** **[Teknik karar]** Backend tarafında Domain, Application, Integration (Testcontainers PostgreSQL 18), Frontend tarafında Vitest ve React Testing Library ile kapsayıcı test paketi kurulmuştur. Toplam 128 backend test vakası ve 64 frontend testi %100 başarılıdır.
 
 ### ADR-016 - Admin Denetlenebilirliği ve Yönetim Sınırları
-- **Karar:** **[Teknik karar]** `/api/admin` endpoint'leri yalnız `AdminOnly` yetkisiyle korunur. Admin kullanıcı oluşturabilir, şifre sıfırlayabilir, kullanıcıyı aktif/pasif yapabilir ve mahremiyet korumalı logları inceleyebilir.
+- **Karar:** **[Teknik karar]** `/api/admin` endpoint'leri yalnız `AdminOnly` yetkisiyle korunur. Admin kullanıcı oluşturabilir, şifre sıfırlayabilir, kullanıcıyı aktif/pasif yapabilir, kullanıcı memnuniyeti dağılımını izleyebilir ve mahremiyet korumalı logları inceleyebilir.
 
 ### ADR-017 - Birleşik PDF İndirme Mimarisi (PDFsharp & Embedded Font Resolver)
 - **Karar:** **[Ürün kararı]** Özet detay sayfasından indirilebilen kurumsal PDF raporları için permissive MIT lisanslı `PDFsharp 6.1.1` kütüphanesi seçilmiştir.
-- **Gerekçe & Font Çözümü:** Cross-platform Docker/Linux ortamlarında Türkçe karakter sorunu (UTF-8) yaşamamak için `NotoSans-Regular.ttf` ve `NotoSans-Bold.ttf` font dosyaları `IFS.AIWeb.Application` derlemesine gömülü kaynak (`EmbeddedResource`) olarak eklenmiş ve özel `EmbeddedFontResolver` ile tescil edilmiştir.
+- **Gerekçe & Font Çözümü:** Cross-platform Docker/Linux ortamlarında Türkçe karakter sorunu yaşamamak için PDF içerisine gömülü Unicode ve Türkçe glif desteğine sahip Noto Sans TrueType fontları (`NotoSans-Regular.ttf` ve `NotoSans-Bold.ttf`, SIL Open Font License 1.1) `IFS.AIWeb.Application` derlemesine gömülü kaynak (`EmbeddedResource`) olarak eklenmiş ve özel `EmbeddedFontResolver` ile tescil edilmiştir.
 - **Performans & Rate Limit:** `GET /api/summaries/{id}/pdf` endpoint'i POST rate-limit kotasını tüketmez.
 - **Uygulama Kanıtı:** `EmbeddedFontResolver.cs`, `PdfReportGenerator.cs`, `IPdfReportGenerator.cs`, `Program.cs`.
 
@@ -90,6 +90,6 @@ Bu belge, **IFS-AI-Web** projesinin mimari kararlarını (ADR), tasarım ilkeler
 - **Uygulama Kanıtı:** `SummarizationService.cs` (`DownloadPdfAsync`, `DetailAsync`), `SummaryApiTests.cs`.
 
 ### ADR-019 - Vibrant Pink & Neon Violet AI Tema Mimarisi
-- **Karar:** **[UI/UX Kararı]** İstemci arayüzü kasvetli tonlardan çıkarılarak modern, enerjik ve şık **"Vibrant Pink & Neon Violet AI"** tasarım diline dönüştürülmüştür.
-- **Özellikler:** `Plus Jakarta Sans` tipografisi, ferah lavanta zemin (`#FAF5FF`), yumuşatılmış kart hatları (`rounded-2xl`), mor-pembe şeffaf gölgeler ve pembeden mora uzanan gradyan butonlar (`linear-gradient(135deg, #EC4899 0%, #8B5CF6 100%)`).
+- **Karar:** **[UI/UX Kararı]** İstemci arayüzü modern, enerjik ve şık **"Vibrant Pink & Neon Violet AI"** tasarım diline dönüştürülmüştür.
+- **Özellikler:** `Plus Jakarta Sans` tipografisi, ferah lavanta zemin (`#FAF5FF`), yumuşatılmış kart hatları (`rounded-2xl`), mor-pembe soft gölgeler ve pembeden mora uzanan gradyan butonlar (`linear-gradient(135deg, #EC4899 0%, #8B5CF6 100%)`).
 - **Uygulama Kanıtı:** `frontend/src/styles.css`.
