@@ -98,4 +98,43 @@ describe('summarization experience', () => {
     expect(cancelMock).toHaveBeenCalled()
     expect(await screen.findByRole('button', { name: /sesli dinle/i })).toHaveAttribute('aria-pressed', 'false')
   })
+
+  it('renders time-saved badges and copy-to-clipboard buttons in summary detail view', async () => {
+    const writeTextMock = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', { ...globalThis.navigator, clipboard: { writeText: writeTextMock } })
+    const fetchMock = renderApp()
+    fetchMock.mockImplementationOnce(() => response({ id: 'badge-1', summary: 'Kısa özet metni.', language: 'Turkish', createdAtUtc: new Date().toISOString(), expiresAtUtc: new Date().toISOString() }))
+      .mockImplementationOnce(() => response([]))
+
+    const area = await screen.findByLabelText('Kaynak metin')
+    fireEvent.change(area, { target: { value: 'Detaylı ve uzun kaynak metin içeriği.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Özet oluştur' }))
+
+    expect(await screen.findByText(/Zaman Tasarrufu:/)).toBeVisible()
+    expect(screen.getAllByText(/Kaynak Metin:/)[0]).toBeVisible()
+    expect(screen.getByText(/Özet:/)).toBeVisible()
+
+    const copyButtons = screen.getAllByRole('button', { name: /kopyala/i })
+    expect(copyButtons.length).toBeGreaterThanOrEqual(2)
+    fireEvent.click(copyButtons[0])
+    expect(writeTextMock).toHaveBeenCalled()
+    expect(await screen.findByText('Kopyalandı! ✓')).toBeVisible()
+  })
+
+  it('filters library summaries using the search input', async () => {
+    const items = [
+      { id: 'search-1', summary: 'Finansal rapor özeti', language: 'Turkish', createdAtUtc: new Date().toISOString(), expiresAtUtc: new Date().toISOString() },
+      { id: 'search-2', summary: 'Teknoloji makalesi özeti', language: 'Turkish', createdAtUtc: new Date().toISOString(), expiresAtUtc: new Date().toISOString() },
+    ]
+    renderApp(items)
+    fireEvent.click(await screen.findByRole('button', { name: 'Kitaplık' }))
+
+    const searchInput = await screen.findByLabelText('Özetlerde ara')
+    expect(searchInput).toBeVisible()
+
+    fireEvent.change(searchInput, { target: { value: 'Finansal' } })
+    const libraryContainer = document.querySelector('.library-view')
+    expect(libraryContainer).toHaveTextContent('Finansal Rapor')
+    expect(libraryContainer).not.toHaveTextContent('Teknoloji Makalesi')
+  })
 })

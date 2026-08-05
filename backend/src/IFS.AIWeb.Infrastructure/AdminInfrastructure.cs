@@ -119,9 +119,18 @@ internal sealed class AdminRepository(AuthDbContext db) : IAdminRepository
             FROM summary_records
             WHERE created_at_utc >= {{fromUtc}} AND created_at_utc < {{toExclusiveUtc}}
             """).SingleAsync(ct);
+        var feedbackRow = await db.Database.SqlQuery<FeedbackRow>($$"""
+            SELECT COUNT(*) FILTER (WHERE feedback = 'Useful')::int AS "Useful",
+                   COUNT(*) FILTER (WHERE feedback = 'NotUseful')::int AS "NotUseful"
+            FROM summary_records
+            WHERE created_at_utc >= {{fromUtc}} AND created_at_utc < {{toExclusiveUtc}}
+            """).SingleAsync(ct);
+        var totalFeedback = feedbackRow.Useful + feedbackRow.NotUseful;
+        var satisfactionRate = totalFeedback == 0 ? 0 : Math.Round((decimal)feedbackRow.Useful * 100 / totalFeedback, 2);
+        var feedbackSummary = new AdminFeedbackSummary(feedbackRow.Useful, feedbackRow.NotUseful, satisfactionRate);
         return new(days.Select(x => new AdminStatisticsDayProjection(x.DateUtc, x.Total, x.Succeeded,
                 x.Failed, x.Turkish, x.English, x.AverageDurationMilliseconds, x.ActiveUsers)).ToArray(),
-            providers.Select(x => new AdminProviderStatistics(x.Provider, x.Model, x.Total)).ToArray(), activeUsers);
+            providers.Select(x => new AdminProviderStatistics(x.Provider, x.Model, x.Total)).ToArray(), activeUsers, feedbackSummary);
     }
 
     private async Task RevokeUserSessionsAsync(Guid userId, DateTimeOffset now, string reason, CancellationToken ct)
@@ -133,4 +142,5 @@ internal sealed class AdminRepository(AuthDbContext db) : IAdminRepository
     private sealed record StatisticsDayRow(DateOnly DateUtc, int Total, int Succeeded, int Failed,
         int Turkish, int English, decimal AverageDurationMilliseconds, int ActiveUsers);
     private sealed record ProviderRow(string Provider, string Model, int Total);
+    private sealed record FeedbackRow(int Useful, int NotUseful);
 }

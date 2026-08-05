@@ -34,12 +34,14 @@ public sealed record AdminLogListDto(IReadOnlyList<AdminLogDto> Items, int Total
 public sealed record AdminStatisticsDayProjection(DateOnly DateUtc, int Total, int Succeeded, int Failed,
     int Turkish, int English, decimal AverageDurationMilliseconds, int ActiveUsers);
 public sealed record AdminProviderStatistics(string Provider, string Model, int Total);
+public sealed record AdminFeedbackSummary(int Useful, int NotUseful, decimal SatisfactionRate);
 public sealed record AdminStatisticsData(IReadOnlyList<AdminStatisticsDayProjection> Days,
-    IReadOnlyList<AdminProviderStatistics> Providers, int ActiveUsers);
+    IReadOnlyList<AdminProviderStatistics> Providers, int ActiveUsers, AdminFeedbackSummary Feedback);
 public sealed record AdminStatisticsDay(DateOnly DateUtc, int Total, int Succeeded, int Failed,
     decimal SuccessRate, int Turkish, int English, long AverageDurationMilliseconds, int ActiveUsers);
 public sealed record AdminSevenDayStatistics(DateTimeOffset FromUtc, DateTimeOffset ToExclusiveUtc,
-    IReadOnlyList<AdminStatisticsDay> Days, IReadOnlyList<AdminProviderStatistics> Providers, int ActiveUsers);
+    IReadOnlyList<AdminStatisticsDay> Days, IReadOnlyList<AdminProviderStatistics> Providers, int ActiveUsers,
+    AdminFeedbackSummary Feedback);
 public sealed record AdminPromptInfo(string Version, string Purpose, IReadOnlyList<string> SupportedLanguages, bool Editable);
 
 public sealed class AdminUserNotFoundException : Exception;
@@ -173,7 +175,7 @@ public sealed class AdminService(IAdminRepository admin, IUserRepository users, 
                 value.Turkish, value.English,
                 (long)Math.Round(value.AverageDurationMilliseconds, MidpointRounding.AwayFromZero), value.ActiveUsers);
         }).ToArray();
-        return new(from, to, days, statistics.Providers, statistics.ActiveUsers);
+        return new(from, to, days, statistics.Providers, statistics.ActiveUsers, statistics.Feedback);
     }
 
     private static string? NormalizeSearch(string? value) => string.IsNullOrWhiteSpace(value)

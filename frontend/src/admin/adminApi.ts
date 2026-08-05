@@ -9,7 +9,8 @@ export type AdminLog = { id: string; createdAtUtc: string; username: string; sta
 export type LogFilters = { page: number; pageSize?: number; status?: '' | 'Succeeded' | 'Failed'; language?: '' | 'Turkish' | 'English'; user?: string; fromUtc?: string; toUtc?: string }
 export type StatisticsDay = { dateUtc: string; total: number; succeeded: number; failed: number; successRate: number; turkish: number; english: number; averageDurationMilliseconds: number; activeUsers: number }
 export type ProviderStatistic = { provider: string; model: string; total: number }
-export type SevenDayStatistics = { fromUtc: string; toExclusiveUtc: string; days: StatisticsDay[]; providers: ProviderStatistic[]; activeUsers: number }
+export type FeedbackSummary = { useful: number; notUseful: number; satisfactionRate: number }
+export type SevenDayStatistics = { fromUtc: string; toExclusiveUtc: string; days: StatisticsDay[]; providers: ProviderStatistic[]; activeUsers: number; feedback?: FeedbackSummary }
 export type PromptInfo = { version: string; purpose: string; supportedLanguages: string[]; editable: false }
 export type FieldErrors = Record<string, string[]>
 
