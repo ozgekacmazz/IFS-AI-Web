@@ -12,7 +12,7 @@ export function deriveSummaryTitle(source: string | undefined, summary: string, 
   if (words.length < 2) return fallback
   const topic = [...new Set(words.map(word => titleCase(word, language)))].slice(0, 2).join(' ')
   if (!topic || topic.length > 52) return fallback
-  return `${topic} ${language === 'Turkish' ? 'Özeti' : 'Summary'}`
+  return topic
 }
 
 function titleCase(value: string, language: SummaryLanguage) {

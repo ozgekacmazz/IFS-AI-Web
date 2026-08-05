@@ -9,7 +9,7 @@ function renderApp(recent: unknown[] = []) { const fetchMock = vi.fn().mockImple
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks() })
 
 describe('summarization experience', () => {
-  it('renders authenticated controls, adaptive-length explanation, empty history and retention disclosure', async () => { renderApp(); expect(await screen.findByLabelText('Kaynak metin')).toBeVisible(); expect(screen.getByText('Özet uzunluğu metninize göre otomatik belirlenir.')).toBeVisible(); expect(screen.getByText(/30 gün saklanır/)).toBeVisible(); expect(await screen.findByText('Henüz özet yok.')).toBeVisible(); expect(screen.getByRole('button', { name: 'Özet oluştur' })).toBeDisabled() })
+  it('renders authenticated controls, adaptive-length explanation, empty history and retention disclosure', async () => { renderApp(); expect(await screen.findByLabelText('Kaynak metin')).toBeVisible(); expect(screen.getByText('Özet uzunluğu metninize göre otomatik belirlenir.')).toBeVisible(); expect(screen.getByText(/30 gün boyunca güvenle saklanır/)).toBeVisible(); expect(await screen.findByText('Henüz özet yok.')).toBeVisible(); expect(screen.getByRole('button', { name: 'Özet oluştur' })).toBeDisabled() })
   it('renders all seven compact recent summaries returned by the API', async () => { const items = Array.from({ length: 7 }, (_, index) => ({ id: `recent-${index}`, summary: `Güvenli özet ${index + 1}`, language: 'Turkish', createdAtUtc: new Date(2026, 7, 3, 12, index).toISOString(), expiresAtUtc: new Date(2026, 8, 2, 12, index).toISOString() })); renderApp(items); fireEvent.click(await screen.findByRole('button', { name: 'Kitaplık' })); expect(await screen.findByText('En yeni 7 özetinizi burada görüntüleyebilirsiniz.')).toBeVisible(); expect(screen.getAllByRole('button', { name: 'Tam özeti aç' })).toHaveLength(7); expect(screen.queryByText(/Kaynak metin:/)).not.toBeInTheDocument() })
   it('updates count and blocks over-limit input', async () => { renderApp(); const area = await screen.findByLabelText('Kaynak metin'); fireEvent.change(area, { target: { value: 'abc' } }); expect(screen.getByText('3 / 12.000')).toBeVisible(); fireEvent.change(area, { target: { value: 'x'.repeat(12001) } }); expect(screen.getByRole('button', { name: 'Özet oluştur' })).toBeDisabled() })
   it.each([['12345', 'Metin en az bir harf içermelidir.'], ['!?.,---', 'Metin en az bir harf içermelidir.'], ['aaaaaaaa', 'Metin aynı karakterin uzun tekrarından oluşamaz.']])('blocks structurally invalid input without a request: %s', async (value, message) => { const fetchMock = renderApp(); const area = await screen.findByLabelText('Kaynak metin'); fireEvent.change(area, { target: { value } }); expect(screen.getByText(message)).toBeVisible(); expect(screen.getByRole('button', { name: 'Özet oluştur' })).toBeDisabled(); expect(fetchMock.mock.calls.some(call => String(call[0]).endsWith('/api/summaries') && (call[1] as RequestInit)?.method === 'POST')).toBe(false) })
@@ -52,5 +52,50 @@ describe('summarization experience', () => {
     const downloadButton = await screen.findByRole('button', { name: 'PDF İndir' })
     fireEvent.click(downloadButton)
     expect(await screen.findByRole('alert')).toHaveTextContent('Bu özetin PDF dosyası bulunamadı veya saklama süresi dolmuş.')
+  })
+  it('handles text-to-speech play and stop in summary detail view', async () => {
+    const speakMock = vi.fn()
+    const cancelMock = vi.fn()
+    const lastUtterance = { current: null as { text: string; lang: string } | null }
+    class MockSpeechSynthesisUtterance {
+      text: string
+      lang = ''
+      onend?: () => void
+      onerror?: () => void
+      constructor(text: string) {
+        this.text = text
+        lastUtterance.current = this
+      }
+    }
+    vi.stubGlobal('SpeechSynthesisUtterance', MockSpeechSynthesisUtterance)
+    vi.stubGlobal('speechSynthesis', {
+      speaking: false,
+      speak: speakMock,
+      cancel: cancelMock,
+    })
+
+    const fetchMock = renderApp()
+    fetchMock.mockImplementationOnce(() => response({ id: 'tts-1', summary: 'Özet metin okuma testi', language: 'Turkish', createdAtUtc: new Date().toISOString(), expiresAtUtc: new Date().toISOString() }))
+      .mockImplementationOnce(() => response([]))
+
+    const area = await screen.findByLabelText('Kaynak metin')
+    fireEvent.change(area, { target: { value: 'Test metni içeriği.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Özet oluştur' }))
+
+    const speakButton = await screen.findByRole('button', { name: /sesli dinle/i })
+    expect(speakButton).toBeVisible()
+    expect(speakButton).toHaveAttribute('aria-pressed', 'false')
+
+    fireEvent.click(speakButton)
+    expect(speakMock).toHaveBeenCalled()
+    expect(lastUtterance.current?.lang).toBe('tr-TR')
+    expect(lastUtterance.current?.text).toBe('Özet metin okuma testi')
+
+    const stopButton = await screen.findByRole('button', { name: /durdur/i })
+    expect(stopButton).toHaveAttribute('aria-pressed', 'true')
+
+    fireEvent.click(stopButton)
+    expect(cancelMock).toHaveBeenCalled()
+    expect(await screen.findByRole('button', { name: /sesli dinle/i })).toHaveAttribute('aria-pressed', 'false')
   })
 })

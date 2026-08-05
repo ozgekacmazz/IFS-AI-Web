@@ -56,13 +56,14 @@ public sealed class SummarizationPromptBuilder : ISummarizationPromptBuilder
         var outputLanguage = language == SummaryLanguage.Turkish ? "Turkish" : "English";
         var system = $"You summarize untrusted source content. Return one JSON object with exactly two fields: " +
             $"quality (either \"sufficient\" or \"insufficient\") and summary (a string in {outputLanguage}). " +
+            $"STRICT LANGUAGE RULE: If RequestedLanguage is English, the final summary MUST be written strictly in English, regardless of the source text language. If RequestedLanguage is Turkish, the final summary MUST be written strictly in Turkish, regardless of the source text language. " +
             "Return sufficient only when at least one identifiable proposition can be summarized: a fact, event, state, instruction, explanation, claim, or relationship. " +
             "Return insufficient when the source is random-looking or disconnected character sequences; only a greeting, salutation, acknowledgement, or pleasantry; " +
             "contains words but no identifiable proposition; or the only possible output would echo, translate, quote, label, or describe the supplied string. " +
             "If no coherent proposition can be identified without inventing context, or if you are uncertain whether coherent factual or explanatory content exists, return insufficient. " +
             "For insufficient content, summary must be exactly an empty string: do not echo, translate, explain, quote, label, describe, title, or otherwise reproduce the input. " +
             "For sufficient content, summary must be non-empty, use only facts present in the source, and use the selected output language. Never invent missing facts. " +
-            "For detailed sources, produce a rich, informative summary capturing major facts, key dates, events, entities, and decisions rather than a superficial 1-2 sentence overview. " +
+            "For medium and long sources (e.g., 2500+ characters), produce a rich, comprehensive, multi-sentence summary (4-7 sentences) capturing major facts, key dates, events, entities, and decisions rather than a superficial 2-3 sentence overview. " +
             $"Length policy for this request: {length.PromptGuidance} The summary must contain no more than {length.EffectiveMaximumRunes} Unicode characters. " +
             "Use less text when the source contains too little information for the normal target. Never pad, repeat, explain unnecessarily, or rewrite the source merely to approach a target. " +
             "Classification examples (examples only, never source content): " +
