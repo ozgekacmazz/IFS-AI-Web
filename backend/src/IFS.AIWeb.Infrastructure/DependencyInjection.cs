@@ -17,7 +17,7 @@ public static class DependencyInjection
         var groq = configuration.GetSection("Groq").Get<GroqOptions>() ?? new();
         if (groq.TimeoutSeconds is < 1 or > 120 || groq.MaxOutputTokens != 500 || !Uri.TryCreate(groq.BaseUrl, UriKind.Absolute, out _)) throw new InvalidOperationException("Groq yapılandırması geçersiz.");
         services.AddSingleton(groq); services.AddScoped<ISummaryRepository, SummaryRepository>();
-        services.AddHttpClient<ILlmSummarizer, GroqSummarizer>(client => { client.BaseAddress = new Uri(groq.BaseUrl); client.Timeout = TimeSpan.FromSeconds(groq.TimeoutSeconds); });
+        services.AddHttpClient<ILlmSummarizer, GroqSummarizer>(client => { client.BaseAddress = new Uri(groq.BaseUrl); client.Timeout = TimeSpan.FromSeconds(groq.TimeoutSeconds); client.DefaultRequestHeaders.UserAgent.ParseAdd("IFS-AI-Web/1.0"); });
         return services;
     }
 }

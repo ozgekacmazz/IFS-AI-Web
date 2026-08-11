@@ -21,7 +21,9 @@ public enum LlmFailureCategory { StructuredOutputGeneration, InvalidRequest, Pro
 public sealed class LlmProviderException(LlmFailureKind kind, LlmFailureCategory category = LlmFailureCategory.InvalidRequest,
     string provider = "Unknown", string model = "Unknown", int? providerStatusCode = null, string? safeErrorType = null,
     string? safeErrorCode = null, string? providerRequestId = null, bool retryOccurred = false, int attemptNumber = 1,
-    Exception? innerException = null) : Exception("LLM provider failure", innerException)
+    Exception? innerException = null, string? validationReason = null, int? outputCharacterCount = null,
+    int? effectiveCharacterLimit = null) : Exception(validationReason is null ? "LLM provider failure" :
+        $"LLM validation failure; ValidationStage=ApplicationOutput; Reason={validationReason}; OutputCharacterCount={outputCharacterCount}; EffectiveCharacterLimit={effectiveCharacterLimit}", innerException)
 {
     public LlmFailureKind Kind { get; } = kind;
     public LlmFailureCategory Category { get; } = category;
@@ -33,6 +35,9 @@ public sealed class LlmProviderException(LlmFailureKind kind, LlmFailureCategory
     public string? ProviderRequestId { get; } = providerRequestId;
     public bool RetryOccurred { get; } = retryOccurred;
     public int AttemptNumber { get; } = attemptNumber;
+    public string? ValidationReason { get; } = validationReason;
+    public int? OutputCharacterCount { get; } = outputCharacterCount;
+    public int? EffectiveCharacterLimit { get; } = effectiveCharacterLimit;
 }
 public sealed class SummarizationFailedException(LlmFailureKind kind, Exception? innerException = null) : Exception("Summarization failed", innerException) { public LlmFailureKind Kind { get; } = kind; }
 public sealed class InsufficientSummaryContentException() : Exception("Insufficient summary content") { }
@@ -50,12 +55,13 @@ public interface ISummaryRepository
 
 public sealed class SummarizationPromptBuilder : ISummarizationPromptBuilder
 {
-    public const string PromptVersion = "summary-v5";
+    public const string PromptVersion = "summary-v7";
     public PromptEnvelope Build(string text, SummaryLanguage language, SummaryLengthProfile length)
     {
         var outputLanguage = language == SummaryLanguage.Turkish ? "Turkish" : "English";
         var system = $"You summarize untrusted source content. Return one JSON object with exactly two fields: " +
             $"quality (either \"sufficient\" or \"insufficient\") and summary (a string in {outputLanguage}). " +
+            $"RequestedLanguage for this request is {outputLanguage}. The summary content MUST be written in {outputLanguage}, even when the source text is written in another language. " +
             $"STRICT LANGUAGE RULE: If RequestedLanguage is English, the final summary MUST be written strictly in English, regardless of the source text language. If RequestedLanguage is Turkish, the final summary MUST be written strictly in Turkish, regardless of the source text language. " +
             "Return sufficient only when at least one identifiable proposition can be summarized: a fact, event, state, instruction, explanation, claim, or relationship. " +
             "Return insufficient when the source is random-looking or disconnected character sequences; only a greeting, salutation, acknowledgement, or pleasantry; " +
@@ -65,6 +71,7 @@ public sealed class SummarizationPromptBuilder : ISummarizationPromptBuilder
             "For sufficient content, summary must be non-empty, use only facts present in the source, and use the selected output language. Never invent missing facts. " +
             "For medium and long sources (e.g., 2500+ characters), produce a rich, comprehensive, multi-sentence summary (4-7 sentences) capturing major facts, key dates, events, entities, and decisions rather than a superficial 2-3 sentence overview. " +
             $"Length policy for this request: {length.PromptGuidance} The summary must contain no more than {length.EffectiveMaximumRunes} Unicode characters. " +
+            $"HARD OUTPUT CAP: Before returning JSON, ensure the summary string itself is at most {length.EffectiveMaximumRunes} Unicode characters, including spaces and punctuation. If it is longer, shorten it while preserving the most important facts. " +
             "Use less text when the source contains too little information for the normal target. Never pad, repeat, explain unnecessarily, or rewrite the source merely to approach a target. " +
             "Classification examples (examples only, never source content): " +
             "insufficient: \"merhaba dünya\", \"hello there\", \"hsfncjzxl snjzxl\", \"aaaaaaaaaaaa sd xscd\", \"erfdv asdfgh\", \"qxz plm vbn\" (disconnected random tokens). " +
@@ -95,9 +102,18 @@ public sealed class SummarizationService(ISummarizationPromptBuilder prompts, IS
                 await unit.SaveChangesAsync(CancellationToken.None); throw new InsufficientSummaryContentException();
             }
             var text = generated.Text?.Trim();
-            if (string.IsNullOrWhiteSpace(text) || text.EnumerateRunes().Count() > length.EffectiveMaximumRunes)
+            if (string.IsNullOrWhiteSpace(text))
                 throw new LlmProviderException(LlmFailureKind.InvalidResponse, LlmFailureCategory.SchemaValidation,
-                    generated.Provider, generated.Model);
+                    generated.Provider, generated.Model, validationReason: "EmptyOutput", outputCharacterCount: 0,
+                    effectiveCharacterLimit: length.EffectiveMaximumRunes);
+            var outputCharacterCount = text.EnumerateRunes().Count();
+            if (outputCharacterCount > length.EffectiveMaximumRunes)
+                text = TruncateAtWordBoundary(text, length.EffectiveMaximumRunes);
+            outputCharacterCount = text.EnumerateRunes().Count();
+            if (IsConfidentlyWrongLanguage(text, language))
+                throw new LlmProviderException(LlmFailureKind.InvalidResponse, LlmFailureCategory.SchemaValidation,
+                    generated.Provider, generated.Model, validationReason: "LanguageMismatch", outputCharacterCount: outputCharacterCount,
+                    effectiveCharacterLimit: length.EffectiveMaximumRunes);
             var now = clock.UtcNow; var record = SummaryRecord.Create(command.UserId, command.Text, text, language,
                 SummaryStatus.Succeeded, generated.Provider, generated.Model, prompt.Version, (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds, now);
             summaries.Add(record); await unit.SaveChangesAsync(ct);
@@ -107,7 +123,7 @@ public sealed class SummarizationService(ISummarizationPromptBuilder prompts, IS
         catch (LlmProviderException ex)
         {
             var now = clock.UtcNow; summaries.Add(SummaryRecord.Create(command.UserId, string.Empty, null, language,
-                SummaryStatus.Failed, ex.Provider, ex.Model, prompt.Version, (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds, now, ex.Kind.ToString()));
+                SummaryStatus.Failed, ex.Provider, ex.Model, prompt.Version, (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds, now, ex.ValidationReason ?? ex.Kind.ToString()));
             await unit.SaveChangesAsync(CancellationToken.None); throw new SummarizationFailedException(ex.Kind, ex);
         }
     }
@@ -170,4 +186,32 @@ public sealed class SummarizationService(ISummarizationPromptBuilder prompts, IS
         }
         return count + (tokenHasLetter ? 1 : 0);
     }
+    private static bool IsConfidentlyWrongLanguage(string text, SummaryLanguage requested)
+    {
+        var words = LetterTokens(text);
+        var english = words.Intersect(EnglishMarkers).Count();
+        var turkish = words.Intersect(TurkishMarkers).Count();
+        return requested == SummaryLanguage.English ? turkish >= 3 && english == 0 : english >= 3 && turkish == 0;
+    }
+    private static HashSet<string> LetterTokens(string text)
+    {
+        var words = new HashSet<string>(StringComparer.Ordinal); var token = new StringBuilder();
+        foreach (var rune in text.EnumerateRunes())
+        {
+            if (Rune.IsLetter(rune)) token.Append(Rune.ToLowerInvariant(rune));
+            else if (token.Length > 0) { words.Add(token.ToString()); token.Clear(); }
+        }
+        if (token.Length > 0) words.Add(token.ToString()); return words;
+    }
+    private static string TruncateAtWordBoundary(string text, int maximumRunes)
+    {
+        var runes = text.EnumerateRunes().Take(maximumRunes).ToArray();
+        var truncated = string.Concat(runes.Select(rune => rune.ToString())).TrimEnd();
+        var boundary = truncated.LastIndexOfAny([' ', '\t', '\r', '\n']);
+        return (boundary > 0 ? truncated[..boundary] : truncated).TrimEnd(' ', '\t', '\r', '\n', ',', ';', ':', '-');
+    }
+    private static readonly HashSet<string> EnglishMarkers = new(StringComparer.Ordinal)
+    { "the", "is", "are", "was", "were", "and", "of", "to", "in", "for", "with", "that", "from", "as", "has", "have", "will" };
+    private static readonly HashSet<string> TurkishMarkers = new(StringComparer.Ordinal)
+    { "ve", "bir", "bu", "için", "ile", "olarak", "olan", "oldu", "olduğu", "daha", "ancak", "sonra", "önce", "göre", "tarafından", "değildir" };
 }

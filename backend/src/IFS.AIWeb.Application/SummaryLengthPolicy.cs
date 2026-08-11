@@ -31,7 +31,7 @@ public sealed class SummaryLengthPolicy : ISummaryLengthPolicy
             _ => ("long", "Uzun", 1_500,
                 "Provide a comprehensive, highly detailed summary of approximately 5-10 cohesive sentences (500-1,200 characters), capturing all major dates, events, key entities, and important decisions in full depth.")
         };
-        return new(id, label, sourceLength, maximum, Math.Min(maximum, sourceLength), guidance);
+        return new(id, label, sourceLength, maximum, maximum, guidance);
     }
 
     private static int NormalizedRuneCount(string sourceText)

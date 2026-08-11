@@ -47,8 +47,12 @@ public sealed class GroqSummarizer(HttpClient client, GroqOptions options, ILogg
             var started = Stopwatch.GetTimestamp();
             try
             {
+                logger.LogInformation("Summarization provider request; Language {Language}; Model {Model}; MaxTokens {MaxTokens}; ResponseFormat {ResponseFormat}; PromptVersion {PromptVersion}",
+                    prompt.Language, options.Model, options.MaxOutputTokens, "json_schema", prompt.Version);
                 using var request = CreateRequest(prompt); using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
                 var requestId = ProviderRequestId(response);
+                logger.LogInformation("Summarization provider response; Language {Language}; Model {Model}; ProviderStatus {ProviderStatus}; PromptVersion {PromptVersion}; ProviderRequestId {ProviderRequestId}",
+                    prompt.Language, options.Model, (int)response.StatusCode, prompt.Version, requestId);
                 if (!response.IsSuccessStatusCode)
                 {
                     var metadata = await SafeErrorMetadataAsync(response, ct); var category = FailureCategory(response.StatusCode, metadata);

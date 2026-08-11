@@ -30,6 +30,9 @@ public sealed class AuthServiceTests
     [Fact] public async Task Refresh_RejectsExpiredAndInactiveUsers()
     { var f = new Fixture(); await f.Service.RegisterAsync(new("member", "Ada", "Lovelace", "Secure123!", "Secure123!"), default); var login = await f.Service.LoginAsync(new("member", "Secure123!"), default); f.Clock.Now = f.Clock.Now.AddDays(8); await Assert.ThrowsAsync<AuthenticationFailedException>(() => f.Service.RefreshAsync(login.RefreshToken, default)); var f2 = new Fixture(); await f2.Service.RegisterAsync(new("member", "Ada", "Lovelace", "Secure123!", "Secure123!"), default); var login2 = await f2.Service.LoginAsync(new("member", "Secure123!"), default); f2.Users.Items.Single().Deactivate(f2.Clock.UtcNow); await Assert.ThrowsAsync<AuthenticationFailedException>(() => f2.Service.RefreshAsync(login2.RefreshToken, default)); }
 
+    [Fact] public async Task Refresh_RejectsUnknownAndRevokedTokens()
+    { var f = new Fixture(); await Assert.ThrowsAsync<AuthenticationFailedException>(() => f.Service.RefreshAsync("unknown", default)); await f.Service.RegisterAsync(new("member", "Ada", "Lovelace", "Secure123!", "Secure123!"), default); var login = await f.Service.LoginAsync(new("member", "Secure123!"), default); f.Tokens.Items.Single().Revoke(f.Clock.UtcNow, "test"); await Assert.ThrowsAsync<AuthenticationFailedException>(() => f.Service.RefreshAsync(login.RefreshToken, default)); Assert.All(f.Tokens.Items, token => Assert.NotNull(token.RevokedAtUtc)); }
+
     private sealed class Fixture
     {
         public Users Users { get; } = new(); public Tokens Tokens { get; } = new(); public Clock Clock { get; } = new(); public AuthService Service { get; }

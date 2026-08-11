@@ -42,7 +42,13 @@ builder.Services.AddRateLimiter(options =>
     { var http = context.HttpContext; var seconds = SummaryRateLimitPolicy.RetryAfterSeconds(context.Lease); http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("SummaryRateLimit").LogInformation("Summary rate limit; Endpoint {Endpoint}; Method {Method}; Partition {Partition}; PolicyExecuted {PolicyExecuted}; Decision {Decision}; RemainingPermits {RemainingPermits}; TraceId {TraceId}", http.Request.Path.Value, http.Request.Method, SafePartition(http.User), true, "Rejected", null, http.TraceIdentifier); http.Response.StatusCode = 429; http.Response.Headers.RetryAfter = seconds.ToString(CultureInfo.InvariantCulture); var problem = new ProblemDetails { Status = 429, Title = "İstek sınırı aşıldı", Detail = "Belirtilen süre sonunda yeniden deneyin." }; problem.Extensions["retryAfterSeconds"] = seconds; await http.Response.WriteAsJsonAsync(problem, ct); };
 });
 
-var app = builder.Build(); app.UseExceptionHandler(handler => handler.Run(WriteError)); app.UseCors(CorsPolicy); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter();
+var app = builder.Build();
+app.UseExceptionHandler(new ExceptionHandlerOptions
+{
+    ExceptionHandler = WriteError,
+    SuppressDiagnosticsCallback = context => context.Exception is AuthenticationFailedException
+});
+app.UseCors(CorsPolicy); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter();
 app.Use(async (context, next) => { if (HttpMethods.IsPost(context.Request.Method) && context.Request.Path.Equals("/api/summaries", StringComparison.OrdinalIgnoreCase)) context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("SummaryRateLimit").LogInformation("Summary rate limit; Endpoint {Endpoint}; Method {Method}; Partition {Partition}; PolicyExecuted {PolicyExecuted}; Decision {Decision}; RemainingPermits {RemainingPermits}; TraceId {TraceId}", context.Request.Path.Value, context.Request.Method, SafePartition(context.User), true, "Admitted", null, context.TraceIdentifier); await next(); });
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy" })).AllowAnonymous();
 var auth = app.MapGroup("/api/auth");
@@ -50,7 +56,7 @@ auth.MapPost("/register", async (RegisterRequest request, AuthService service, C
 auth.MapPost("/login", async (LoginRequest request, AuthService service, HttpContext context, CancellationToken ct) =>
 { var result = await service.LoginAsync(new(request.Username, request.Password), ct); SetRefreshCookie(context, result.RefreshToken, result.RefreshTokenExpiresAtUtc); return Results.Ok(new { result.AccessToken, result.AccessTokenExpiresAtUtc, result.User }); }).AllowAnonymous().WithMetadata(new RequestSizeLimitAttribute(16_384));
 auth.MapPost("/refresh", async (AuthService service, HttpContext context, CancellationToken ct) =>
-{ ValidateOrigin(context, allowedOrigins); if (!context.Request.Cookies.TryGetValue("refreshToken", out var token)) throw new AuthenticationFailedException(); var result = await service.RefreshAsync(token, ct); SetRefreshCookie(context, result.RefreshToken, result.RefreshTokenExpiresAtUtc); return Results.Ok(new { result.AccessToken, result.AccessTokenExpiresAtUtc, result.User }); }).AllowAnonymous();
+{ ValidateOrigin(context, allowedOrigins); if (!context.Request.Cookies.TryGetValue("refreshToken", out var token)) return Results.Unauthorized(); var result = await service.RefreshAsync(token, ct); SetRefreshCookie(context, result.RefreshToken, result.RefreshTokenExpiresAtUtc); return Results.Ok(new { result.AccessToken, result.AccessTokenExpiresAtUtc, result.User }); }).AllowAnonymous();
 auth.MapPost("/logout", async (AuthService service, HttpContext context, CancellationToken ct) =>
 { if (context.Request.Cookies.TryGetValue("refreshToken", out var token)) { ValidateOrigin(context, allowedOrigins); await service.LogoutAsync(token, ct); } context.Response.Cookies.Delete("refreshToken", CookieOptions(context, DateTimeOffset.UnixEpoch)); return Results.NoContent(); }).AllowAnonymous();
 auth.MapGet("/me", async (ClaimsPrincipal principal, AuthService service, CancellationToken ct) => Results.Ok(await service.GetUserAsync(Guid.Parse(principal.FindFirstValue(JwtRegisteredClaimNames.Sub)!), ct))).RequireAuthorization();

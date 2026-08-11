@@ -32,6 +32,23 @@ public sealed class AuthApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     [Fact] public async Task Health_RemainsAnonymous()
     { using var response = await factory.Client().GetAsync("/health"); Assert.Equal(HttpStatusCode.OK, response.StatusCode); }
+    [Fact] public async Task RefreshWithoutCookie_ReturnsUnauthorized()
+    { using var response = await factory.Client(false).SendAsync(Request(HttpMethod.Post, "/api/auth/refresh")); Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode); }
+    [Fact] public async Task RefreshWithUnknownToken_ReturnsUnauthorized()
+    { using var response = await factory.Client(false).SendAsync(Request(HttpMethod.Post, "/api/auth/refresh", "refreshToken=unknown")); Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode); }
+    [Theory] [InlineData(false)] [InlineData(true)]
+    public async Task ExpiredOrRevokedRefresh_ReturnsUnauthorized(bool revoked)
+    {
+        var username = "stale" + Guid.NewGuid().ToString("N")[..8]; var client = factory.Client(false); await Register(client, username, "Secure123!");
+        var login = await client.PostAsJsonAsync("/api/auth/login", new { username, password = "Secure123!" }); var cookie = Cookie(login); var hash = TokenHash(cookie);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+            if (revoked) await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE refresh_tokens SET revoked_at_utc = {DateTimeOffset.UtcNow} WHERE token_hash = {hash}");
+            else await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE refresh_tokens SET expires_at_utc = {DateTimeOffset.UtcNow.AddMinutes(-1)} WHERE token_hash = {hash}");
+        }
+        using var response = await client.SendAsync(Request(HttpMethod.Post, "/api/auth/refresh", cookie)); Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
     [Fact] public async Task Registration_IsUser_Hashed_AndDuplicateIsConflict()
     {
         var client = factory.Client(); var password = "Secure123!"; var response = await Register(client, "CaseUser", password); Assert.Equal(HttpStatusCode.Created, response.StatusCode);
@@ -86,7 +103,8 @@ public sealed class AuthApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
     private static Task<HttpResponseMessage> Register(HttpClient client, string username, string password) => client.PostAsJsonAsync("/api/auth/register", new { username, firstName = "Test", lastName = "User", password, passwordConfirmation = password });
     private static string Cookie(HttpResponseMessage response) => response.Headers.GetValues("Set-Cookie").Single(x => x.StartsWith("refreshToken="));
     private static string Value(string cookie) => cookie.Split(';')[0];
-    private static HttpRequestMessage Request(HttpMethod method, string path, string cookie) { var request = new HttpRequestMessage(method, path); request.Headers.TryAddWithoutValidation("Cookie", Value(cookie)); request.Headers.TryAddWithoutValidation("Origin", "https://spa.test"); return request; }
+    private static string TokenHash(string cookie) => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(Value(cookie)["refreshToken=".Length..])));
+    private static HttpRequestMessage Request(HttpMethod method, string path, string? cookie = null) { var request = new HttpRequestMessage(method, path); if (cookie is not null) request.Headers.TryAddWithoutValidation("Cookie", cookie.Contains(';') ? Value(cookie) : cookie); request.Headers.TryAddWithoutValidation("Origin", "https://spa.test"); return request; }
     private sealed record Session(string AccessToken);
     private sealed class FailingUnitOfWork : IUnitOfWork
     {

@@ -43,4 +43,23 @@ describe('Phase 2 authentication UI', () => {
     vi.mocked(fetch).mockImplementationOnce(() => json({ accessToken: 'opaque', user: { username: 'member', firstName: 'Member', lastName: 'User', role: 'User' } })).mockImplementationOnce(() => Promise.resolve(new Response(null, { status: 204 })))
     render(<MemoryRouter initialEntries={['/app']}><App /></MemoryRouter>); fireEvent.click(await screen.findByRole('button', { name: 'Çıkış yap' })); expect(await screen.findByRole('heading', { name: 'Giriş yap' })).toBeVisible()
   })
+  it('treats a bootstrap 401 as one anonymous-session check without a loop', async () => {
+    const fetchMock = vi.mocked(fetch)
+    render(<MemoryRouter initialEntries={['/app']}><App /></MemoryRouter>)
+    expect(await screen.findByRole('heading', { name: 'Giriş yap' })).toBeVisible()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/api/auth/refresh'), expect.objectContaining({ method: 'POST', credentials: 'include' }))
+  })
+  it('restores the session from the HttpOnly cookie on bootstrap', async () => {
+    vi.mocked(fetch).mockImplementationOnce(() => json({ accessToken: 'restored', user: { username: 'restored-member', firstName: 'Member', lastName: 'User', role: 'User' } })).mockImplementationOnce(() => json([]))
+    render(<MemoryRouter initialEntries={['/app']}><App /></MemoryRouter>)
+    expect(await screen.findByText('@restored-member')).toBeVisible()
+    expect(vi.mocked(fetch).mock.calls.filter(call => String(call[0]).endsWith('/api/auth/refresh'))).toHaveLength(1)
+  })
+  it('returns safely to login when bootstrap finds no session after logout', async () => {
+    const fetchMock = vi.mocked(fetch)
+    render(<MemoryRouter initialEntries={['/app']}><App /></MemoryRouter>)
+    expect(await screen.findByRole('heading', { name: 'Giriş yap' })).toBeVisible()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
 })
