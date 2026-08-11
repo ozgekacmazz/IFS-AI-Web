@@ -21,7 +21,7 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options) : DbC
         var token = modelBuilder.Entity<RefreshToken>(); token.ToTable("refresh_tokens"); token.HasKey(x => x.Id);
         token.Property(x => x.Id).HasColumnName("id"); token.Property(x => x.UserId).HasColumnName("user_id"); token.Property(x => x.TokenHash).HasColumnName("token_hash").HasMaxLength(64).IsRequired(); token.HasIndex(x => x.TokenHash).IsUnique().HasDatabaseName("ux_refresh_tokens_token_hash");
         token.Property(x => x.FamilyId).HasColumnName("family_id"); token.HasIndex(x => x.FamilyId).HasDatabaseName("ix_refresh_tokens_family_id");
-        token.Property(x => x.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamp with time zone"); token.Property(x => x.ExpiresAtUtc).HasColumnName("expires_at_utc").HasColumnType("timestamp with time zone"); token.Property(x => x.RevokedAtUtc).HasColumnName("revoked_at_utc").HasColumnType("timestamp with time zone");
+        token.Property(x => x.CreatedAtUtc).HasColumnName("created_at_utc").HasColumnType("timestamp with time zone"); token.Property(x => x.ExpiresAtUtc).HasColumnName("expires_at_utc").HasColumnType("timestamp with time zone"); token.Property(x => x.AbsoluteExpiresAtUtc).HasColumnName("absolute_expires_at_utc").HasColumnType("timestamp with time zone"); token.Property(x => x.RevokedAtUtc).HasColumnName("revoked_at_utc").HasColumnType("timestamp with time zone");
         token.Property(x => x.ReplacedByTokenId).HasColumnName("replaced_by_token_id"); token.Property(x => x.RevocationReason).HasColumnName("revocation_reason").HasMaxLength(100);
         token.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
 

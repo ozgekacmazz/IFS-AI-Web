@@ -5,6 +5,8 @@ using IFS.AIWeb.Domain;
 
 namespace IFS.AIWeb.Application;
 
+public sealed class RefreshTokenOptions { public int LifetimeDays { get; set; } = 7; public int AbsoluteSessionLifetimeDays { get; set; } = 30; }
+
 public sealed record RegisterCommand(string Username, string FirstName, string LastName, string Password, string PasswordConfirmation);
 public sealed record LoginCommand(string Username, string Password);
 public sealed record SafeUser(string Username, string FirstName, string LastName, string Role);

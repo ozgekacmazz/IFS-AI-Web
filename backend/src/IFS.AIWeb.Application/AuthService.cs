@@ -3,7 +3,8 @@ using IFS.AIWeb.Domain;
 namespace IFS.AIWeb.Application;
 
 public sealed class AuthService(IUserRepository users, IRefreshTokenRepository tokens, IUnitOfWork unit,
-    IPasswordService passwords, IAccessTokenService accessTokens, IRefreshTokenService refreshTokens, IClock clock)
+    IPasswordService passwords, IAccessTokenService accessTokens, IRefreshTokenService refreshTokens, IClock clock,
+    RefreshTokenOptions refreshTokenOptions)
 {
     public async Task<SafeUser> RegisterAsync(RegisterCommand command, CancellationToken ct)
     {
@@ -30,7 +31,8 @@ public sealed class AuthService(IUserRepository users, IRefreshTokenRepository t
         var user = await users.FindByNormalizedUsernameAsync(normalized, ct);
         if (user is null || !passwords.Verify(user, user.PasswordHash, command.Password)) throw new AuthenticationFailedException();
         if (!user.IsActive) throw new AccountInactiveException();
-        var refresh = NewRefresh(user.Id, Guid.NewGuid()); tokens.Add(refresh.Entity); await unit.SaveChangesAsync(ct);
+        var now = clock.UtcNow;
+        var refresh = NewRefresh(user.Id, Guid.NewGuid(), now.AddDays(refreshTokenOptions.AbsoluteSessionLifetimeDays)); tokens.Add(refresh.Entity); await unit.SaveChangesAsync(ct);
         var access = accessTokens.Create(user); return new(access.Token, access.ExpiresAtUtc, Safe(user), refresh.Plaintext, refresh.Entity.ExpiresAtUtc);
     }
 
@@ -40,7 +42,8 @@ public sealed class AuthService(IUserRepository users, IRefreshTokenRepository t
         if (current is null) throw new AuthenticationFailedException();
         if (current.RevokedAtUtc is not null) { await tokens.RevokeFamilyAsync(current.FamilyId, now, "Tekrar kullanım tespit edildi", inner); await unit.SaveChangesAsync(inner); throw new AuthenticationFailedException(); }
         if (!current.IsActive(now) || !current.User.IsActive) { await tokens.RevokeFamilyAsync(current.FamilyId, now, "Süresi doldu veya kullanıcı etkin değil", inner); await unit.SaveChangesAsync(inner); throw new AuthenticationFailedException(); }
-        var next = NewRefresh(current.UserId, current.FamilyId); current.Revoke(now, "Döndürüldü", next.Entity.Id); tokens.Add(next.Entity); await unit.SaveChangesAsync(inner);
+        if (now >= current.AbsoluteExpiresAtUtc) { await tokens.RevokeFamilyAsync(current.FamilyId, now, "Mutlak oturum süresi doldu", inner); await unit.SaveChangesAsync(inner); throw new AuthenticationFailedException(); }
+        var next = NewRefresh(current.UserId, current.FamilyId, current.AbsoluteExpiresAtUtc); current.Revoke(now, "Döndürüldü", next.Entity.Id); tokens.Add(next.Entity); await unit.SaveChangesAsync(inner);
         var access = accessTokens.Create(current.User); return new RefreshResult(access.Token, access.ExpiresAtUtc, Safe(current.User), next.Plaintext, next.Entity.ExpiresAtUtc);
     }, ct);
 
@@ -52,8 +55,8 @@ public sealed class AuthService(IUserRepository users, IRefreshTokenRepository t
     }
     public async Task<SafeUser> GetUserAsync(Guid id, CancellationToken ct)
     { var user = await users.FindByIdAsync(id, ct); if (user is null || !user.IsActive) throw new AuthenticationFailedException(); return Safe(user); }
-    private (string Plaintext, RefreshToken Entity) NewRefresh(Guid userId, Guid family)
-    { var plain = refreshTokens.Generate(); var now = clock.UtcNow; return (plain, RefreshToken.Create(Guid.NewGuid(), userId, refreshTokens.Hash(plain), family, now, now.AddDays(7))); }
+    private (string Plaintext, RefreshToken Entity) NewRefresh(Guid userId, Guid family, DateTimeOffset absoluteExpiresAtUtc)
+    { var plain = refreshTokens.Generate(); var now = clock.UtcNow; return (plain, RefreshToken.Create(Guid.NewGuid(), userId, refreshTokens.Hash(plain), family, now, now.AddDays(refreshTokenOptions.LifetimeDays), absoluteExpiresAtUtc)); }
     private static SafeUser Safe(User user) => new(user.Username, user.FirstName, user.LastName, user.Role.ToString());
     private static void Merge(Dictionary<string, string[]> target, Dictionary<string, string[]> source)
     { foreach (var (key, messages) in source) target[key] = target.TryGetValue(key, out var existing) ? [.. existing, .. messages] : messages; }

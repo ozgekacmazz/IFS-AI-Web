@@ -30,6 +30,11 @@ public sealed class FakeLlmSummarizer : ILlmSummarizer
 
 public sealed class AuthApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
+    [Fact] public void InvalidAbsoluteSessionLifetime_FailsStartup()
+    {
+        using var invalid = factory.WithWebHostBuilder(builder => builder.UseSetting("RefreshToken:AbsoluteSessionLifetimeDays", "0"));
+        Assert.ThrowsAny<Exception>(() => invalid.CreateClient());
+    }
     [Fact] public async Task Health_RemainsAnonymous()
     { using var response = await factory.Client().GetAsync("/health"); Assert.Equal(HttpStatusCode.OK, response.StatusCode); }
     [Fact] public async Task RefreshWithoutCookie_ReturnsUnauthorized()
@@ -48,6 +53,22 @@ public sealed class AuthApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
             else await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE refresh_tokens SET expires_at_utc = {DateTimeOffset.UtcNow.AddMinutes(-1)} WHERE token_hash = {hash}");
         }
         using var response = await client.SendAsync(Request(HttpMethod.Post, "/api/auth/refresh", cookie)); Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+    [Fact] public async Task AbsoluteExpiry_ReturnsUnauthorizedRevokesFamily_AndReloginCreatesNewSession()
+    {
+        var username = "absolute" + Guid.NewGuid().ToString("N")[..8]; var client = factory.Client(false); await Register(client, username, "Secure123!");
+        var login = await client.PostAsJsonAsync("/api/auth/login", new { username, password = "Secure123!" }); var cookie = Cookie(login); var hash = TokenHash(cookie); Guid familyId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>(); var token = await db.RefreshTokens.SingleAsync(x => x.TokenHash == hash); familyId = token.FamilyId;
+            await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE refresh_tokens SET absolute_expires_at_utc = {DateTimeOffset.UtcNow.AddMinutes(-1)} WHERE family_id = {familyId}");
+        }
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.SendAsync(Request(HttpMethod.Post, "/api/auth/refresh", cookie))).StatusCode);
+        using (var scope = factory.Services.CreateScope())
+        { var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>(); Assert.All(await db.RefreshTokens.Where(x => x.FamilyId == familyId).ToListAsync(), token => Assert.NotNull(token.RevokedAtUtc)); }
+        var relogin = await client.PostAsJsonAsync("/api/auth/login", new { username, password = "Secure123!" }); Assert.Equal(HttpStatusCode.OK, relogin.StatusCode); var newHash = TokenHash(Cookie(relogin));
+        using (var scope = factory.Services.CreateScope())
+        { var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>(); var replacement = await db.RefreshTokens.SingleAsync(x => x.TokenHash == newHash); Assert.NotEqual(familyId, replacement.FamilyId); Assert.True(replacement.AbsoluteExpiresAtUtc > DateTimeOffset.UtcNow.AddDays(29)); }
     }
     [Fact] public async Task Registration_IsUser_Hashed_AndDuplicateIsConflict()
     {

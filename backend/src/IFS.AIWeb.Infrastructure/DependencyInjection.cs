@@ -12,6 +12,10 @@ public static class DependencyInjection
         var connection = configuration.GetConnectionString("PostgreSql") ?? throw new InvalidOperationException("PostgreSQL bağlantısı yapılandırılmalıdır.");
         services.AddDbContext<AuthDbContext>(o => o.UseNpgsql(connection));
         var jwt = configuration.GetSection("Jwt").Get<JwtOptions>() ?? new(); services.AddSingleton(jwt);
+        var refreshTokens = configuration.GetSection("RefreshToken").Get<RefreshTokenOptions>() ?? new();
+        if (refreshTokens.LifetimeDays <= 0 || refreshTokens.AbsoluteSessionLifetimeDays <= 0 || refreshTokens.AbsoluteSessionLifetimeDays < refreshTokens.LifetimeDays)
+            throw new InvalidOperationException("Refresh token configuration is invalid.");
+        services.AddSingleton(refreshTokens);
         services.AddScoped<IUserRepository, UserRepository>(); services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>(); services.AddScoped<IAdminRepository, AdminRepository>(); services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddSingleton<IPasswordService, PasswordService>(); services.AddSingleton<IRefreshTokenService, RefreshTokenService>(); services.AddSingleton<IClock, SystemClock>(); services.AddSingleton<IAccessTokenService, AccessTokenService>();
         var groq = configuration.GetSection("Groq").Get<GroqOptions>() ?? new();

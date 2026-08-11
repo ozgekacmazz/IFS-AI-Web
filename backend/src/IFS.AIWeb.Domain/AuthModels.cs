@@ -37,8 +37,8 @@ public sealed class User
 public sealed class RefreshToken
 {
     private RefreshToken() { }
-    private RefreshToken(Guid id, Guid userId, string tokenHash, Guid familyId, DateTimeOffset created, DateTimeOffset expires)
-    { Id = id; UserId = userId; TokenHash = tokenHash; FamilyId = familyId; CreatedAtUtc = created; ExpiresAtUtc = expires; }
+    private RefreshToken(Guid id, Guid userId, string tokenHash, Guid familyId, DateTimeOffset created, DateTimeOffset expires, DateTimeOffset absoluteExpires)
+    { Id = id; UserId = userId; TokenHash = tokenHash; FamilyId = familyId; CreatedAtUtc = created; ExpiresAtUtc = expires; AbsoluteExpiresAtUtc = absoluteExpires; }
 
     public Guid Id { get; private set; }
     public Guid UserId { get; private set; }
@@ -46,13 +46,14 @@ public sealed class RefreshToken
     public Guid FamilyId { get; private set; }
     public DateTimeOffset CreatedAtUtc { get; private set; }
     public DateTimeOffset ExpiresAtUtc { get; private set; }
+    public DateTimeOffset AbsoluteExpiresAtUtc { get; private set; }
     public DateTimeOffset? RevokedAtUtc { get; private set; }
     public Guid? ReplacedByTokenId { get; private set; }
     public string? RevocationReason { get; private set; }
     public User User { get; private set; } = null!;
     public bool IsActive(DateTimeOffset now) => RevokedAtUtc is null && ExpiresAtUtc > now;
-    public static RefreshToken Create(Guid id, Guid userId, string hash, Guid familyId, DateTimeOffset now, DateTimeOffset expires) =>
-        new(id, userId, hash, familyId, now, expires);
+    public static RefreshToken Create(Guid id, Guid userId, string hash, Guid familyId, DateTimeOffset now, DateTimeOffset expires, DateTimeOffset absoluteExpires) =>
+        new(id, userId, hash, familyId, now, expires, absoluteExpires);
     public void Revoke(DateTimeOffset now, string reason, Guid? replacement = null)
     { if (RevokedAtUtc is null) { RevokedAtUtc = now; RevocationReason = reason; ReplacedByTokenId = replacement; } }
 }

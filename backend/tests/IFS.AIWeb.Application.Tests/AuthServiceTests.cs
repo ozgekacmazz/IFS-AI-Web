@@ -27,6 +27,27 @@ public sealed class AuthServiceTests
     { var fixture = new Fixture(); await Assert.ThrowsAsync<AuthenticationFailedException>(() => fixture.Service.LoginAsync(new("missing", "wrong password"), default)); await Assert.ThrowsAsync<AuthenticationFailedException>(() => fixture.Service.LoginAsync(new("missing", null!), default)); await fixture.Service.RegisterAsync(new("member", "Ada", "Lovelace", "Secure123!", "Secure123!"), default); await Assert.ThrowsAsync<AuthenticationFailedException>(() => fixture.Service.LoginAsync(new("member", "wrong password"), default)); fixture.Users.Items.Single().Deactivate(fixture.Clock.UtcNow); await Assert.ThrowsAsync<AccountInactiveException>(() => fixture.Service.LoginAsync(new("member", "Secure123!"), default)); }
     [Fact] public async Task Refresh_RotatesAndReuseRevokesFamily()
     { var f = new Fixture(); await f.Service.RegisterAsync(new("member", "Ada", "Lovelace", "Secure123!", "Secure123!"), default); var login = await f.Service.LoginAsync(new("member", "Secure123!"), default); var refreshed = await f.Service.RefreshAsync(login.RefreshToken, default); Assert.NotEqual(login.RefreshToken, refreshed.RefreshToken); await Assert.ThrowsAsync<AuthenticationFailedException>(() => f.Service.RefreshAsync(login.RefreshToken, default)); Assert.All(f.Tokens.Items, x => Assert.NotNull(x.RevokedAtUtc)); }
+    [Fact] public async Task LoginAndRotations_PreserveAbsoluteExpiry()
+    {
+        var f = new Fixture(); await f.Service.RegisterAsync(new("member", "Ada", "Lovelace", "Secure123!", "Secure123!"), default);
+        var login = await f.Service.LoginAsync(new("member", "Secure123!"), default); var expected = f.Clock.UtcNow.AddDays(30);
+        Assert.Equal(expected, f.Tokens.Items.Single().AbsoluteExpiresAtUtc);
+        f.Clock.Now = f.Clock.Now.AddDays(6); var first = await f.Service.RefreshAsync(login.RefreshToken, default);
+        f.Clock.Now = f.Clock.Now.AddDays(6); await f.Service.RefreshAsync(first.RefreshToken, default);
+        Assert.All(f.Tokens.Items, token => Assert.Equal(expected, token.AbsoluteExpiresAtUtc));
+    }
+    [Fact] public async Task Refresh_AfterAbsoluteExpiry_RevokesFamilyAndReloginStartsNewFamily()
+    {
+        var f = new Fixture(); await f.Service.RegisterAsync(new("member", "Ada", "Lovelace", "Secure123!", "Secure123!"), default);
+        var login = await f.Service.LoginAsync(new("member", "Secure123!"), default); var token = login.RefreshToken;
+        for (var day = 6; day <= 24; day += 6) { f.Clock.Now = f.Clock.Now.AddDays(6); token = (await f.Service.RefreshAsync(token, default)).RefreshToken; }
+        var oldFamily = f.Tokens.Items.Single(x => x.TokenHash == "hash-" + token).FamilyId;
+        f.Clock.Now = f.Clock.Now.AddDays(6);
+        await Assert.ThrowsAsync<AuthenticationFailedException>(() => f.Service.RefreshAsync(token, default));
+        Assert.All(f.Tokens.Items.Where(x => x.FamilyId == oldFamily), item => Assert.NotNull(item.RevokedAtUtc));
+        var relogin = await f.Service.LoginAsync(new("member", "Secure123!"), default); var newest = f.Tokens.Items.Single(x => x.TokenHash == "hash-" + relogin.RefreshToken);
+        Assert.NotEqual(oldFamily, newest.FamilyId); Assert.Equal(f.Clock.UtcNow.AddDays(30), newest.AbsoluteExpiresAtUtc);
+    }
     [Fact] public async Task Refresh_RejectsExpiredAndInactiveUsers()
     { var f = new Fixture(); await f.Service.RegisterAsync(new("member", "Ada", "Lovelace", "Secure123!", "Secure123!"), default); var login = await f.Service.LoginAsync(new("member", "Secure123!"), default); f.Clock.Now = f.Clock.Now.AddDays(8); await Assert.ThrowsAsync<AuthenticationFailedException>(() => f.Service.RefreshAsync(login.RefreshToken, default)); var f2 = new Fixture(); await f2.Service.RegisterAsync(new("member", "Ada", "Lovelace", "Secure123!", "Secure123!"), default); var login2 = await f2.Service.LoginAsync(new("member", "Secure123!"), default); f2.Users.Items.Single().Deactivate(f2.Clock.UtcNow); await Assert.ThrowsAsync<AuthenticationFailedException>(() => f2.Service.RefreshAsync(login2.RefreshToken, default)); }
 
@@ -36,7 +57,7 @@ public sealed class AuthServiceTests
     private sealed class Fixture
     {
         public Users Users { get; } = new(); public Tokens Tokens { get; } = new(); public Clock Clock { get; } = new(); public AuthService Service { get; }
-        public Fixture() { Tokens.CurrentUsers = Users; var crypto = new Crypto(); Service = new(Users, Tokens, new Unit(), new Passwords(), new Access(Clock), crypto, Clock); }
+        public Fixture() { Tokens.CurrentUsers = Users; var crypto = new Crypto(); Service = new(Users, Tokens, new Unit(), new Passwords(), new Access(Clock), crypto, Clock, new() { LifetimeDays = 7, AbsoluteSessionLifetimeDays = 30 }); }
     }
     private sealed class Users : IUserRepository { public List<User> Items { get; } = []; public Task<User?> FindByNormalizedUsernameAsync(string value, CancellationToken ct) => Task.FromResult(Items.SingleOrDefault(x => x.NormalizedUsername == value)); public Task<User?> FindByIdAsync(Guid id, CancellationToken ct) => Task.FromResult(Items.SingleOrDefault(x => x.Id == id)); public void Add(User user) => Items.Add(user); }
     private sealed class Tokens : IRefreshTokenRepository { public List<RefreshToken> Items { get; } = []; public Task<RefreshToken?> FindByHashAsync(string hash, CancellationToken ct) => Task.FromResult(Items.SingleOrDefault(x => x.TokenHash == hash)); public Task<RefreshToken?> FindByHashForUpdateAsync(string hash, CancellationToken ct) => FindByHashAsync(hash, ct); public void Add(RefreshToken token) { var user = CurrentUsers?.Items.Single(x => x.Id == token.UserId); Items.Add(token); typeof(RefreshToken).GetProperty(nameof(RefreshToken.User))!.SetValue(token, user); } public Users? CurrentUsers { get; set; } public Task RevokeFamilyAsync(Guid family, DateTimeOffset now, string reason, CancellationToken ct) { foreach (var x in Items.Where(x => x.FamilyId == family)) x.Revoke(now, reason); return Task.CompletedTask; } }
